@@ -25,7 +25,7 @@ st.write("Dashboard ini menampilkan tahapan lengkap dari model prediksi perminta
 def load_data():
     try:
         # Coba muat dari file CSV
-        df = pd.read_csv('your_data.csv') # <--- GANTI NAMA FILE ANDA DI SINI
+        df = pd.read_csv('Dataset_Permintaan_Produk_Retail_2024') # <--- GANTI NAMA FILE ANDA DI SINI
         # Pastikan kolom-kolom yang diharapkan ada
         if 'Stok Tersedia' not in df.columns or 'Kategori Produk' not in df.columns or 'Jumlah Penjualan' not in df.columns:
             st.error("File CSV tidak memiliki kolom yang diperlukan: 'Stok Tersedia', 'Kategori Produk', 'Jumlah Penjualan'.")
