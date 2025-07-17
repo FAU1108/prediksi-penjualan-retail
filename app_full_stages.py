@@ -77,7 +77,7 @@ y = df_encoded['Jumlah Penjualan']
 # Membagi Data Latih dan Uji
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-# --- Tambahan untuk Debugging Tipe Data (akan muncul di dashboard) ---
+# --- Tambahan untuk Debugging Tipe Data (akan muncul di sidebar dashboard) ---
 st.sidebar.subheader("Debugging Tipe Data")
 st.sidebar.write("Tipe data X_train:")
 st.sidebar.write(X_train.dtypes)
@@ -186,8 +186,9 @@ with tab1:
         mean_stok = 150
         unique_kategori = ['Makanan', 'Minuman', 'Elektronik', 'Pakaian', 'Alat Tulis']
 
-    stok_input = st.sidebar.slider("Stok Tersedia", min_value=min_stok, max_value=max_stok, value=mean_stok)
-    kategori_input = st.sidebar.selectbox("Kategori Produk", unique_kategori)
+    # Penambahan 'key' untuk widget agar unik (mengatasi Not_FoundError)
+    stok_input = st.sidebar.slider("Stok Tersedia", min_value=min_stok, max_value=max_stok, value=mean_stok, key="stok_slider_key")
+    kategori_input = st.sidebar.selectbox("Kategori Produk", unique_kategori, key="kategori_select_key")
 
     # Pra-pemrosesan input pengguna untuk prediksi
     input_data_for_pred = pd.DataFrame([[stok_input, kategori_input]], columns=['Stok Tersedia', 'Kategori Produk'])
