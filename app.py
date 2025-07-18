@@ -44,7 +44,7 @@ X_vif = X.drop(columns='const')
 if menu == "Visualisasi Penjualan Bulanan":
     st.header("1. Visualisasi Tren Penjualan per Bulan")
     monthly_sales = df.groupby('Bulan')["Penjualan (Unit)"].sum()
-    fig1, ax1 = plt.subplots(figsize=(6, 4))
+    fig1, ax1 = plt.subplots(figsize=(4, 3))
     monthly_sales.plot(kind='bar', color='skyblue', ax=ax1)
     ax1.set_xlabel("Bulan")
     ax1.set_ylabel("Jumlah Penjualan")
@@ -71,7 +71,7 @@ elif menu == "Uji Asumsi Klasik":
     st.header("3. Uji Asumsi Klasik")
 
     with st.expander("3.1 Linearitas"):
-        fig2, ax2 = plt.subplots(figsize=(6, 4))
+        fig2, ax2 = plt.subplots(figsize=(4, 3))
         sns.scatterplot(x=pred, y=residuals, ax=ax2)
         ax2.axhline(0, color='red', linestyle='--')
         ax2.set_xlabel("Prediksi")
@@ -126,7 +126,7 @@ elif menu == "Uji Signifikansi":
 # ========================== PAGE 5 =============================
 elif menu == "Visualisasi Aktual vs Prediksi":
     st.header("5. Visualisasi Aktual vs Prediksi")
-    fig3, ax3 = plt.subplots(figsize=(6, 4))
+    fig3, ax3 = plt.subplots(figsize=(4, 3))
     ax3.scatter(y, pred, alpha=0.5, color='green')
     ax3.plot([y.min(), y.max()], [y.min(), y.max()], 'r--')
     ax3.set_xlabel("Aktual")
@@ -136,7 +136,7 @@ elif menu == "Visualisasi Aktual vs Prediksi":
 
 # ========================== PAGE 6 =============================
 elif menu == "Prediksi Berdasarkan Kategori":
-    st.header("6. Prediksi Permintaan Berdasarkan Kategori Produk")
+    st.header("6. Prediksi Permintaan Bulanan Berdasarkan Kategori Produk")
     kategori = st.selectbox("Pilih Kategori Produk", df['Kategori Produk'].unique())
     df_kat = df[df['Kategori Produk'] == kategori]
     X_kat = sm.add_constant(df_kat[['Harga Satuan', 'Stok Tersedia']], has_constant='add')
@@ -145,16 +145,18 @@ elif menu == "Prediksi Berdasarkan Kategori":
 
     df_kat = df_kat.copy()
     df_kat['Prediksi Penjualan'] = pred_kat
+    df_kat['Bulan'] = df_kat['Tanggal'].dt.to_period('M')
+    monthly_pred = df_kat.groupby('Bulan').agg({'Penjualan (Unit)': 'sum', 'Prediksi Penjualan': 'sum'}).reset_index()
 
-    st.dataframe(df_kat[['Tanggal', 'Harga Satuan', 'Stok Tersedia', 'Penjualan (Unit)', 'Prediksi Penjualan']].head(20))
+    st.dataframe(monthly_pred.head(12))
 
-    st.subheader("Visualisasi Aktual vs Prediksi")
-    fig5, ax5 = plt.subplots(figsize=(6, 4))
-    ax5.plot(df_kat['Tanggal'], df_kat['Penjualan (Unit)'], label='Aktual')
-    ax5.plot(df_kat['Tanggal'], df_kat['Prediksi Penjualan'], label='Prediksi', linestyle='--')
-    ax5.set_title(f"Aktual vs Prediksi - {kategori}")
-    ax5.set_xlabel("Tanggal")
-    ax5.set_ylabel("Unit")
+    st.subheader("Visualisasi Prediksi Bulanan")
+    fig5, ax5 = plt.subplots(figsize=(4, 3))
+    ax5.plot(monthly_pred['Bulan'].astype(str), monthly_pred['Penjualan (Unit)'], label='Aktual')
+    ax5.plot(monthly_pred['Bulan'].astype(str), monthly_pred['Prediksi Penjualan'], label='Prediksi', linestyle='--')
+    ax5.set_title(f"Total Prediksi vs Aktual per Bulan - {kategori}")
+    ax5.set_xlabel("Bulan")
+    ax5.set_ylabel("Penjualan")
     ax5.legend()
     plt.xticks(rotation=45)
     st.pyplot(fig5)
