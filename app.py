@@ -10,7 +10,6 @@ from scipy.stats import shapiro
 import statsmodels.api as sm
 
 st.set_page_config(page_title="Prediksi Permintaan Retail Jakarta Timur", layout="wide")
-
 st.title("📊 Dashboard Prediksi Permintaan Produk Retail – Jakarta Timur")
 
 # Load data
@@ -20,24 +19,40 @@ def load_data():
 
 df = load_data()
 
+# Tampilkan kolom untuk debug
+st.write("📋 Kolom dalam dataset:", df.columns.tolist())
+
+# Deteksi nama kolom kategori secara otomatis
+possible_kategori_cols = ['Kategori_Produk', 'Kategori', 'kategori_produk']
+kategori_col = next((col for col in possible_kategori_cols if col in df.columns), None)
+
+if kategori_col is None:
+    st.error("❌ Kolom kategori produk tidak ditemukan dalam data.")
+    st.stop()
+
 # Tampilkan data
 st.subheader("🗃️ Dataset Penjualan Retail")
 st.dataframe(df.head())
 
 # Pra-pemrosesan
 df['Tanggal'] = pd.to_datetime(df['Tanggal'])
-df['Kategori_Produk'] = df['Kategori_Produk'].astype(str)
+df[kategori_col] = df[kategori_col].astype(str)
 
 # One-Hot Encoding untuk kategori
-df_encoded = pd.get_dummies(df, columns=['Kategori_Produk'], drop_first=True)
+df_encoded = pd.get_dummies(df, columns=[kategori_col], drop_first=True)
 
 # Fitur dan target
+required_columns = ['Tanggal', 'Nama_Produk', 'Unit_Terjual']
+missing = [col for col in required_columns if col not in df_encoded.columns]
+if missing:
+    st.error(f"❌ Kolom berikut tidak ditemukan: {missing}")
+    st.stop()
+
 X = df_encoded.drop(columns=['Tanggal', 'Nama_Produk', 'Unit_Terjual'])
 y = df_encoded['Unit_Terjual']
 
 # Handle NaN jika ada
-if X.isnull().values.any():
-    X = X.fillna(0)
+X = X.fillna(0)
 
 # Split data
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
@@ -72,11 +87,8 @@ st.pyplot(fig)
 
 # Uji asumsi klasik
 st.subheader("📌 Uji Asumsi Klasik")
-
-# Residuals
 residuals = y_test - y_pred
 
-# Linearitas dan Homoskedastisitas
 fig2, ax2 = plt.subplots()
 ax2.scatter(y_pred, residuals)
 ax2.axhline(0, color='red', linestyle='--')
@@ -85,11 +97,10 @@ ax2.set_xlabel("Prediksi")
 ax2.set_ylabel("Residual")
 st.pyplot(fig2)
 
-# Shapiro-Wilk
 shapiro_stat, shapiro_p = shapiro(residuals)
 st.markdown(f"**Uji Normalitas (Shapiro-Wilk)**: p-value = `{shapiro_p:.4f}` {'✅ Normal' if shapiro_p > 0.05 else '❌ Tidak Normal'}")
 
-# Uji F dan Uji T
+# Uji F dan T
 X2 = sm.add_constant(X_train)
 est = sm.OLS(y_train, X2).fit()
 st.subheader("📊 Statistik Regresi: Uji F & T")
@@ -99,15 +110,15 @@ st.text(est.summary())
 st.subheader("🔮 Prediksi Permintaan Manual")
 stok = st.number_input("Jumlah stok tersedia", min_value=0, value=10)
 
-# Dropdown kategori
-kategori_list = df['Kategori_Produk'].unique()
+# Dropdown kategori (dari data asli)
+kategori_list = df[kategori_col].unique()
 kategori_input = st.selectbox("Kategori Produk", kategori_list)
 
-# Bangun input untuk prediksi
+# Buat input satu baris untuk prediksi
 input_data = {'Stok_Tersedia': stok}
-for kategori in df_encoded.columns:
-    if "Kategori_Produk_" in kategori:
-        input_data[kategori] = 1 if kategori == f"Kategori_Produk_{kategori_input}" else 0
+for col in df_encoded.columns:
+    if col.startswith(f"{kategori_col}_"):
+        input_data[col] = 1 if col == f"{kategori_col}_{kategori_input}" else 0
 
 input_df = pd.DataFrame([input_data])
 input_df = input_df.reindex(columns=X.columns, fill_value=0)
