@@ -1,90 +1,80 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import statsmodels.api as sm
-from statsmodels.stats.diagnostic import het_breuschpagan
-from statsmodels.stats.stattools import jarque_bera
-from statsmodels.stats.outliers_influence import variance_inflation_factor
-from scipy.stats import shapiro
-from sklearn.linear_model import LinearRegression
 from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
-import seaborn as sns
+from sklearn.preprocessing import OneHotEncoder
 import matplotlib.pyplot as plt
 
-# --- Config ---
-st.set_page_config(layout="wide", page_title="Dashboard Prediksi Permintaan Retail")
+# Load dataset
+@st.cache_data
+def load_data():
+    df = pd.read_csv("Dataset_Permintaan_Produk_Retail_2024.csv")
+    return df
 
-# --- Load data ---
-df = pd.read_csv("Dataset_Permintaan_Produk_Retail_2024.csv")
-df.columns = df.columns.str.strip()
-df.rename(columns={"Penjualan (Unit)": "Jumlah Penjualan"}, inplace=True)
+df = load_data()
+st.title("📊 Prediksi Permintaan Produk Retail - Jakarta Timur")
 
-# --- Preprocessing ---
-df["Harga Satuan"] = pd.to_numeric(df["Harga Satuan"], errors="coerce")
-df["Stok Tersedia"] = pd.to_numeric(df["Stok Tersedia"], errors="coerce")
-df["Jumlah Penjualan"] = pd.to_numeric(df["Jumlah Penjualan"], errors="coerce")
-df.dropna(inplace=True)
+# Sidebar input
+st.sidebar.header("Input Fitur Prediksi")
+kategori = st.sidebar.selectbox("Kategori Produk", df['Kategori Produk'].unique())
+stok = st.sidebar.number_input("Stok Tersedia", min_value=0, value=100)
+harga = st.sidebar.number_input("Harga Satuan", min_value=0, value=20000)
 
-df_encoded = pd.get_dummies(df, columns=["Kategori Produk"], drop_first=True)
+# Preprocessing
+X = df[['Kategori Produk', 'Stok Tersedia', 'Harga Satuan']]
+y = df['Penjualan (Unit)']
 
-X = df_encoded[["Harga Satuan", "Stok Tersedia"] + [col for col in df_encoded.columns if "Kategori Produk_" in col]]
-y = df_encoded["Jumlah Penjualan"]
+encoder = OneHotEncoder(sparse_output=False)
+X_encoded = encoder.fit_transform(X[['Kategori Produk']])
+encoded_df = pd.DataFrame(X_encoded, columns=encoder.get_feature_names_out(['Kategori Produk']))
+X_final = pd.concat([X[['Stok Tersedia', 'Harga Satuan']].reset_index(drop=True), encoded_df], axis=1)
 
-# --- Train/Test Split ---
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+# Train/test split
+X_train, X_test, y_train, y_test = train_test_split(X_final, y, test_size=0.2, random_state=42)
 
-# --- Model ---
+# Train model
 model = LinearRegression()
 model.fit(X_train, y_train)
+
+# Evaluate model
 y_pred = model.predict(X_test)
-
-# --- Statsmodels for classical assumptions ---
-X_train_sm = sm.add_constant(X_train)
-model_sm = sm.OLS(y_train.astype(float), X_train_sm.astype(float)).fit()
-residuals = model_sm.resid
-
-# --- Evaluation Metrics ---
-r2 = r2_score(y_test, y_pred)
 mse = mean_squared_error(y_test, y_pred)
 rmse = np.sqrt(mse)
 mae = mean_absolute_error(y_test, y_pred)
+r2 = r2_score(y_test, y_pred)
 
-# --- Uji Shapiro-Wilk (Normalitas Residual) ---
-shapiro_stat, shapiro_p = shapiro(residuals)
+# Show metrics
+st.subheader("Evaluasi Model")
+st.write(f"**R-squared (R²):** {r2:.3f}")
+st.write(f"**MSE:** {mse:.2f}")
+st.write(f"**RMSE:** {rmse:.2f}")
+st.write(f"**MAE:** {mae:.2f}")
 
-# --- Uji Breusch-Pagan (Homoskedastisitas) ---
-bp_test = het_breuschpagan(residuals, model_sm.model.exog)
-bp_pvalue = bp_test[1]
+# Predict user input
+input_encoded = encoder.transform([[kategori]])
+input_df = pd.DataFrame(input_encoded, columns=encoder.get_feature_names_out(['Kategori Produk']))
+input_features = pd.DataFrame([[stok, harga]], columns=['Stok Tersedia', 'Harga Satuan'])
+input_all = pd.concat([input_features, input_df], axis=1)
 
-# --- VIF ---
-vif_df = pd.DataFrame()
-vif_df["Fitur"] = X.columns
-vif_df["VIF"] = [variance_inflation_factor(X.values, i) for i in range(X.shape[1])]
+# Align columns
+input_all = input_all.reindex(columns=X_final.columns, fill_value=0)
+prediksi = model.predict(input_all)[0]
 
-# --- Sidebar Prediksi Manual ---
-st.sidebar.header("📥 Prediksi Manual")
-harga_input = st.sidebar.number_input("Harga Satuan", value=25000, step=1000)
-stok_input = st.sidebar.slider("Stok Tersedia", min_value=0, max_value=300, value=150)
-kategori_input = st.sidebar.selectbox("Kategori Produk", df["Kategori Produk"].unique())
+st.sidebar.subheader("Hasil Prediksi")
+st.sidebar.write(f"📦 Prediksi Penjualan: **{prediksi:.0f} unit**")
 
-# --- Build input row ---
-input_dict = {
-    "Harga Satuan": [harga_input],
-    "Stok Tersedia": [stok_input],
-}
-for kat in [col for col in X.columns if "Kategori Produk_" in col]:
-    input_dict[kat] = [1 if kat.endswith(kategori_input) else 0]
+# Visualisasi hasil prediksi
+st.subheader("Grafik: Prediksi vs Aktual")
+fig, ax = plt.subplots()
+ax.scatter(y_test, y_pred, alpha=0.6)
+ax.plot([y.min(), y.max()], [y.min(), y.max()], 'r--')
+ax.set_xlabel("Aktual")
+ax.set_ylabel("Prediksi")
+ax.set_title("Akurasi Model")
+st.pyplot(fig)
 
-input_df = pd.DataFrame(input_dict)
-pred_manual = model.predict(input_df)[0]
-
-st.sidebar.markdown("---")
-st.sidebar.metric("📈 Prediksi Penjualan", f"{pred_manual:.0f} unit")
-
-# --- Tabs ---
-tab1, tab2, tab3, tab4 = st.tabs(["Beranda", "Evaluasi Model", "Uji Statistik", "Visualisasi"])
-
-with tab1:
-    st.title("📊 Dashboard Prediksi Permintaan Produk Retail")
-    st.markdown("**Judul:** Penerapan Business Intelligence untuk P
+# Show data
+with st.expander("🔍 Lihat Data Historis"):
+    st.dataframe(df)
