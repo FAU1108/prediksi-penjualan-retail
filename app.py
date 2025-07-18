@@ -27,13 +27,14 @@ df.rename(columns={
     "Stok Tersedia": "Stok_Tersedia"
 }, inplace=True)
 
+# One-hot encoding untuk kategori
 df = pd.get_dummies(df, columns=["Kategori"], drop_first=True)
 
 # Fitur dan target
 X = df.drop(columns=["Tanggal", "Lokasi", "Harga Satuan", "Unit_Terjual"], errors="ignore")
 y = df["Unit_Terjual"]
 
-# Split
+# Split data
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
 # Model
@@ -78,7 +79,8 @@ with st.expander("📌 Uji Asumsi Klasik (Normalitas Residual)"):
         st.error("❌ Residual tidak normal (gagal uji normalitas)")
 
 with st.expander("📐 Uji Signifikansi (F & T Test)"):
-    X2 = sm.add_constant(X_train)
+    # Hanya ambil kolom numerik untuk OLS
+    X2 = sm.add_constant(X_train.select_dtypes(include=[np.number]))
     ols = sm.OLS(y_train, X2).fit()
     st.text(ols.summary())
 
