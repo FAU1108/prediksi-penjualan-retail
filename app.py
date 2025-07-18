@@ -51,6 +51,10 @@ mae = mean_absolute_error(y_test, y_pred)
 
 # === UJI ASUMSI ===
 X_train_sm = sm.add_constant(X_train)
+X_train_sm = X_train_sm.astype(float).dropna()
+y_train = y_train.astype(float)
+y_train = y_train[X_train_sm.index]
+
 model_sm = sm.OLS(y_train, X_train_sm).fit()
 resid = model_sm.resid
 
