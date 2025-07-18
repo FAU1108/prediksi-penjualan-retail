@@ -1,93 +1,76 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
-from sklearn.model_selection import train_test_split
-from sklearn.linear_model import LinearRegression
-from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
-from sklearn.preprocessing import OneHotEncoder
 import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.linear_model import LinearRegression
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
+from scipy.stats import shapiro
+import statsmodels.api as sm
+from statsmodels.stats.diagnostic import het_breuschpagan
 
 # Load dataset
-@st.cache_data
-def load_data():
-    df = pd.read_csv("Dataset_Permintaan_Produk_Retail_2024.csv")
-    return df
+df = pd.read_csv('Dataset_Permintaan_Produk_Retail_2024.csv')
 
-df = load_data()
-st.title("📊 Prediksi Permintaan Produk Retail - Jakarta Timur")
+# Pra-pemrosesan (sesuaikan dengan notebookmu)
+df['Tanggal'] = pd.to_datetime(df['Tanggal'])
+df = pd.get_dummies(df, columns=['Kategori_Produk'], drop_first=True)
 
-# Sidebar input
-st.sidebar.header("Input Fitur Prediksi")
-kategori = st.sidebar.selectbox("Kategori Produk", df['Kategori Produk'].unique())
-stok = st.sidebar.number_input("Stok Tersedia", min_value=0, value=100)
-harga = st.sidebar.number_input("Harga Satuan", min_value=0, value=20000)
-
-# Preprocessing
-X = df[['Kategori Produk', 'Stok Tersedia', 'Harga Satuan']]
-y = df['Penjualan (Unit)']
-
-encoder = OneHotEncoder(sparse_output=False)
-X_encoded = encoder.fit_transform(X[['Kategori Produk']])
-encoded_df = pd.DataFrame(X_encoded, columns=encoder.get_feature_names_out(['Kategori Produk']))
-X_final = pd.concat([X[['Stok Tersedia', 'Harga Satuan']].reset_index(drop=True), encoded_df], axis=1)
-
-# Train/test split
-X_train, X_test, y_train, y_test = train_test_split(X_final, y, test_size=0.2, random_state=42)
-
-# Train model
-model = LinearRegression()
-model.fit(X_train, y_train)
-
-# Evaluate model
+# Pemodelan
+X = df.drop(['Penjualan', 'Tanggal'], axis=1)
+y = df['Penjualan']
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+model = LinearRegression().fit(X_train, y_train)
 y_pred = model.predict(X_test)
-mse = mean_squared_error(y_test, y_pred)
-rmse = np.sqrt(mse)
-mae = mean_absolute_error(y_test, y_pred)
-r2 = r2_score(y_test, y_pred)
 
-# Show metrics
-st.subheader("Evaluasi Model")
-st.write(f"**R-squared (R²):** {r2:.3f}")
-st.write(f"**MSE:** {mse:.2f}")
-st.write(f"**RMSE:** {rmse:.2f}")
-st.write(f"**MAE:** {mae:.2f}")
+# Streamlit Dashboard
+st.title("Dashboard Prediksi Permintaan Retail")
 
-# Predict user input
-input_encoded = encoder.transform([[kategori]])
-input_df = pd.DataFrame(input_encoded, columns=encoder.get_feature_names_out(['Kategori Produk']))
-input_features = pd.DataFrame([[stok, harga]], columns=['Stok Tersedia', 'Harga Satuan'])
-input_all = pd.concat([input_features, input_df], axis=1)
+menu = st.selectbox("Pilih Analisis:", 
+                    ["Evaluasi Model", "Uji Asumsi Klasik", "Uji Signifikansi", "Visualisasi Prediksi"])
 
-# Align columns
-input_all = input_all.reindex(columns=X_final.columns, fill_value=0)
-prediksi = model.predict(input_all)[0]
+if menu == "Evaluasi Model":
+    mse = mean_squared_error(y_test, y_pred)
+    rmse = mse**0.5
+    mae = mean_absolute_error(y_test, y_pred)
+    r2 = r2_score(y_test, y_pred)
 
-st.sidebar.subheader("Hasil Prediksi")
-st.sidebar.write(f"📦 Prediksi Penjualan: **{prediksi:.0f} unit**")
+    st.metric("R-squared (R²)", round(r2, 3))
+    st.metric("Mean Absolute Error (MAE)", round(mae, 2))
+    st.metric("Mean Squared Error (MSE)", round(mse, 2))
+    st.metric("Root MSE (RMSE)", round(rmse, 2))
 
-# Visualisasi hasil prediksi
-st.subheader("Grafik: Prediksi vs Aktual")
-fig, ax = plt.subplots()
-ax.scatter(y_test, y_pred, alpha=0.6)
-ax.plot([y.min(), y.max()], [y.min(), y.max()], 'r--')
-ax.set_xlabel("Aktual")
-ax.set_ylabel("Prediksi")
-ax.set_title("Akurasi Model")
-st.pyplot(fig)
+elif menu == "Uji Asumsi Klasik":
+    residuals = y_test - y_pred
 
-# Show data
-with st.expander("🔍 Lihat Data Historis"):
-    st.dataframe(df)
+    st.subheader("1. Uji Linearitas")
+    fig, ax = plt.subplots()
+    ax.scatter(y_pred, residuals)
+    ax.axhline(0, color='red', linestyle='--')
+    ax.set_xlabel("Prediksi")
+    ax.set_ylabel("Residual")
+    st.pyplot(fig)
 
-# Uji Asumsi dan Signifikansi
-with st.expander("📋 Hasil Uji Asumsi Klasik dan Signifikansi"):
-    st.markdown("### Uji Asumsi Klasik")
-    st.markdown("- **Uji Linearitas:** Residual menyebar acak di sekitar garis nol → ✅ terpenuhi")
-    st.markdown("- **Uji Normalitas (Shapiro-Wilk):** p-value = 0.8828 → ✅ residual normal")
-    st.markdown("- **Uji Homoskedastisitas:** p-value = 0.372 → ✅ varians residual konstan")
+    st.subheader("2. Uji Normalitas Residual (Shapiro-Wilk)")
+    stat, p = shapiro(residuals)
+    st.write(f"P-Value: {p:.4f}")
+    st.write("Normal" if p > 0.05 else "Tidak Normal")
 
-    st.markdown("### Uji Signifikansi")
-    st.markdown("- **Uji F (model secara keseluruhan):** p-value = 8.18e-130 → ✅ model signifikan")
-    st.markdown("- **Uji T:**\n    - Stok Tersedia: p-value < 0.05 → ✅ signifikan\n    - Kategori Produk: p-value > 0.05 → ❌ tidak signifikan individual")
+    st.subheader("3. Uji Homoskedastisitas (Breusch-Pagan)")
+    _, pval, _, _ = het_breuschpagan(residuals, sm.add_constant(X_test))
+    st.write(f"P-Value: {pval:.4f}")
+    st.write("Homoskedastisitas terpenuhi" if pval > 0.05 else "Terdapat heteroskedastisitas")
 
-    st.markdown("Namun karena model lolos Uji F, seluruh variabel tetap digunakan.")
+elif menu == "Uji Signifikansi":
+    st.subheader("Uji F dan Uji T")
+    X2 = sm.add_constant(X)
+    est = sm.OLS(y, X2).fit()
+    st.text(est.summary())
+
+elif menu == "Visualisasi Prediksi"):
+    st.subheader("Visualisasi Hasil Prediksi vs Aktual")
+    fig, ax = plt.subplots()
+    ax.plot(y_test.values, label="Aktual", marker='o')
+    ax.plot(y_pred, label="Prediksi", marker='x')
+    ax.legend()
+    st.pyplot(fig)
