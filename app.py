@@ -64,7 +64,7 @@ with st.expander("📉 Visualisasi Prediksi vs Aktual"):
 
 with st.expander("📌 Uji Asumsi Klasik (Normalitas Residual)"):
     residuals = y_test - y_pred
-    # Dihardcode berdasarkan hasil dari file
+    # Dihardcode berdasarkan hasil dari file kamu
     stat = 0.9976
     p = 0.8828
 
@@ -90,3 +90,14 @@ with st.expander("📐 Uji Signifikansi (F & T Test)"):
         st.success(f"✅ Uji F signifikan (p = {ols.f_pvalue:.4f})")
     else:
         st.error(f"❌ Uji F tidak signifikan (p = {ols.f_pvalue:.4f})")
+
+with st.expander("📊 Scatter Plot Korelasi Fitur vs Target"):
+    numeric_cols = X.select_dtypes(include=[np.number]).columns
+    selected_col = st.selectbox("Pilih fitur untuk diplot terhadap Unit_Terjual", numeric_cols)
+
+    fig3, ax3 = plt.subplots()
+    sns.scatterplot(x=df[selected_col], y=y, ax=ax3)
+    ax3.set_xlabel(selected_col)
+    ax3.set_ylabel("Unit_Terjual")
+    ax3.set_title(f"Scatter Plot: {selected_col} vs Unit_Terjual")
+    st.pyplot(fig3)
