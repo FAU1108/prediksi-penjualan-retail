@@ -6,7 +6,7 @@ import seaborn as sns
 import statsmodels.api as sm
 from statsmodels.stats.outliers_influence import variance_inflation_factor
 from statsmodels.stats.diagnostic import het_breuschpagan
-from statsmodels.stats.stattools import jarque_bera
+from scipy.stats import shapiro
 
 # Load data
 @st.cache_data
@@ -17,97 +17,100 @@ def load_data():
 
 df = load_data()
 
-# Persiapan data regresi
+# Setup regresi
 X = sm.add_constant(df[['Harga Satuan', 'Stok Tersedia']], has_constant='add')
 y = df['Penjualan (Unit)']
 model = sm.OLS(y, X).fit()
+y_pred = model.predict(X)
+residuals = y - y_pred
 
 # Streamlit UI
 st.set_page_config(layout="wide")
 st.title("📊 Dashboard Prediksi Permintaan Produk Retail")
 
-menu = st.sidebar.selectbox("Pilih Menu", [
-    "Visualisasi Data", 
+menu = st.sidebar.radio("Navigasi", [
     "Evaluasi Model", 
     "Uji Asumsi Klasik", 
-    "Koefisien Model", 
-    "Simulasi Prediksi Manual"
+    "Visualisasi Prediksi", 
+    "Simulasi Prediksi Manual", 
+    "Data Historis"
 ])
 
-# VISUALISASI
-if menu == "Visualisasi Data":
-    st.subheader("📈 Penjualan per Bulan")
-    df_bulanan = df.resample('M', on='Tanggal').sum(numeric_only=True)
-    fig, ax = plt.subplots(figsize=(5, 4))
-    df_bulanan['Penjualan (Unit)'].plot(kind='bar', ax=ax, color='teal')
-    ax.set_title("Total Penjualan per Bulan")
-    ax.set_ylabel("Unit Terjual")
-    st.pyplot(fig)
-
-# EVALUASI MODEL
-elif menu == "Evaluasi Model":
-    st.subheader("📌 Evaluasi Model Regresi")
-    y_pred = model.predict(X)
+if menu == "Evaluasi Model":
+    st.header("📌 Evaluasi Model Regresi")
     mse = np.mean((y - y_pred)**2)
+    rmse = np.sqrt(mse)
     mae = np.mean(np.abs(y - y_pred))
     r2 = model.rsquared
-    col1, col2, col3 = st.columns(3)
+    col1, col2, col3, col4 = st.columns(4)
     col1.metric("R-squared", f"{r2:.3f}")
     col2.metric("MSE", f"{mse:.2f}")
-    col3.metric("MAE", f"{mae:.2f}")
-    st.markdown("---")
+    col3.metric("RMSE", f"{rmse:.2f}")
+    col4.metric("MAE", f"{mae:.2f}")
+
     fig, ax = plt.subplots(figsize=(5, 4))
-    ax.scatter(y, y_pred, alpha=0.6, color='green')
+    ax.scatter(y, y_pred, alpha=0.6, color='blue')
     ax.plot([y.min(), y.max()], [y.min(), y.max()], 'r--')
     ax.set_xlabel("Aktual")
     ax.set_ylabel("Prediksi")
     ax.set_title("Aktual vs Prediksi")
     st.pyplot(fig)
 
-# UJI ASUMSI
 elif menu == "Uji Asumsi Klasik":
-    st.subheader("🧪 Uji Asumsi Klasik")
-    y_pred = model.predict(X)
-    residuals = y - y_pred
-    jb_stat, jb_p, _, _ = jarque_bera(residuals)
-    _, bp_p, _, _ = het_breuschpagan(residuals, X)
-    vif = pd.DataFrame()
-    vif["Fitur"] = X.columns
-    vif["VIF"] = [variance_inflation_factor(X.values, i) for i in range(X.shape[1])]
+    st.header("🧪 Uji Asumsi Klasik")
+    shapiro_p = shapiro(residuals)[1]
+    bp_p = het_breuschpagan(residuals, X)[1]
+    vif_df = pd.DataFrame()
+    vif_df["Fitur"] = X.columns
+    vif_df["VIF"] = [variance_inflation_factor(X.values, i) for i in range(X.shape[1])]
 
-    st.write("### Uji Normalitas (Jarque-Bera)")
-    st.write(f"P-Value: {jb_p:.4f}")
-    st.success("✅ Lolos uji normalitas" if jb_p > 0.05 else "❌ Tidak lolos uji normalitas")
+    st.write("### Normalitas Residual (Shapiro-Wilk)")
+    st.write(f"P-Value: {shapiro_p:.4f}")
+    st.success("✅ Lolos uji normalitas" if shapiro_p > 0.05 else "❌ Tidak lolos")
 
-    st.write("### Uji Homoskedastisitas (Breusch-Pagan)")
+    st.write("### Homoskedastisitas (Breusch-Pagan)")
     st.write(f"P-Value: {bp_p:.4f}")
-    st.success("✅ Lolos homoskedastisitas" if bp_p > 0.05 else "❌ Tidak lolos homoskedastisitas")
+    st.success("✅ Lolos homoskedastisitas" if bp_p > 0.05 else "❌ Tidak lolos")
 
-    st.write("### Uji Multikolinearitas (VIF)")
-    st.dataframe(vif)
+    st.write("### Multikolinearitas (VIF)")
+    st.dataframe(vif_df)
 
-# KOEFISIEN
-elif menu == "Koefisien Model":
-    st.subheader("📌 Koefisien dan Signifikansi")
-    summary = model.summary2().tables[1]
-    summary = summary.rename(columns={"Coef.": "Koefisien", "P>|t|": "P-Value"})
-    summary = summary[['Koefisien', 'P-Value']]
-    summary['Signifikan'] = summary['P-Value'] < 0.05
-    st.dataframe(summary)
-    st.write(f"**P-Value Uji F (Signifikansi Model Keseluruhan):** {model.f_pvalue:.4f}")
+    st.write("### Uji Signifikansi (F & T)")
+    st.write(f"**P-Value Uji F:** {model.f_pvalue:.4e}")
+    signifikan = model.pvalues < 0.05
+    hasil = pd.DataFrame({
+        "Fitur": model.params.index,
+        "Koefisien": model.params.values,
+        "P-Value": model.pvalues.values,
+        "Signifikan": signifikan.values
+    })
+    hasil = hasil[hasil['Fitur'] != 'const']
+    st.dataframe(hasil)
 
-# SIMULASI MANUAL
+elif menu == "Visualisasi Prediksi":
+    st.header("📈 Visualisasi Penjualan Bulanan")
+    df_bulanan = df.resample('M', on='Tanggal').sum(numeric_only=True)
+    fig, ax = plt.subplots(figsize=(5, 4))
+    df_bulanan['Penjualan (Unit)'].plot(kind='bar', ax=ax, color='orange')
+    ax.set_title("Total Penjualan per Bulan")
+    ax.set_ylabel("Unit Terjual")
+    st.pyplot(fig)
+
 elif menu == "Simulasi Prediksi Manual":
-    st.subheader("📌 Simulasi Prediksi Manual")
-    st.write("Masukkan kombinasi variabel untuk memprediksi jumlah penjualan.")
-
+    st.header("📌 Simulasi Prediksi Manual")
+    st.write("Masukkan harga dan stok untuk memprediksi penjualan.")
     harga = st.number_input("Harga Satuan", min_value=0, value=int(df['Harga Satuan'].mean()))
     stok = st.number_input("Stok Tersedia", min_value=0, value=int(df['Stok Tersedia'].mean()))
 
-    X_input = sm.add_constant(pd.DataFrame({
+    input_df = pd.DataFrame({
+        "const": [1],
         "Harga Satuan": [harga],
         "Stok Tersedia": [stok]
-    }), has_constant='add')
+    })
 
-    pred_manual = model.predict(X_input)[0]
-    st.metric("📈 Prediksi Penjualan", f"{pred_manual:.0f} unit")
+    pred = model.predict(input_df)[0]
+    st.metric("📈 Prediksi Penjualan", f"{pred:.0f} unit")
+
+elif menu == "Data Historis":
+    st.header("📂 Data Historis Penjualan")
+    st.dataframe(df)
