@@ -78,3 +78,16 @@ st.pyplot(fig)
 # Show data
 with st.expander("🔍 Lihat Data Historis"):
     st.dataframe(df)
+
+# Uji Asumsi dan Signifikansi
+with st.expander("📋 Hasil Uji Asumsi Klasik dan Signifikansi"):
+    st.markdown("### Uji Asumsi Klasik")
+    st.markdown("- **Uji Linearitas:** Residual menyebar acak di sekitar garis nol → ✅ terpenuhi")
+    st.markdown("- **Uji Normalitas (Shapiro-Wilk):** p-value = 0.8828 → ✅ residual normal")
+    st.markdown("- **Uji Homoskedastisitas:** p-value = 0.372 → ✅ varians residual konstan")
+
+    st.markdown("### Uji Signifikansi")
+    st.markdown("- **Uji F (model secara keseluruhan):** p-value = 8.18e-130 → ✅ model signifikan")
+    st.markdown("- **Uji T:**\n    - Stok Tersedia: p-value < 0.05 → ✅ signifikan\n    - Kategori Produk: p-value > 0.05 → ❌ tidak signifikan individual")
+
+    st.markdown("Namun karena model lolos Uji F, seluruh variabel tetap digunakan.")
