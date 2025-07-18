@@ -26,7 +26,8 @@ menu = st.sidebar.selectbox("Pilih Halaman Dashboard", [
     "Uji Asumsi Klasik",
     "Uji Signifikansi",
     "Visualisasi Aktual vs Prediksi",
-    "Prediksi Manual"
+    "Prediksi Manual",
+    "Prediksi Tahun 2025"
 ])
 
 # ========================== Model Setup =============================
@@ -145,3 +146,35 @@ elif menu == "Prediksi Manual":
             new_X = pd.DataFrame({"const": [1], "Harga Satuan": [harga], "Stok Tersedia": [stok]})
             pred_manual = model.predict(new_X)[0]
             st.success(f"Prediksi Penjualan: {pred_manual:.2f} unit")
+
+# ========================== PAGE 7 =============================
+elif menu == "Prediksi Tahun 2025":
+    st.header("7. Prediksi Penjualan Tahun 2025")
+
+    # Simulasi data 2025
+    tgl_2025 = pd.date_range("2025-01-01", periods=365)
+    np.random.seed(42)
+    harga_simulasi = np.random.normal(df['Harga Satuan'].mean(), df['Harga Satuan'].std(), 365)
+    stok_simulasi = np.random.normal(df['Stok Tersedia'].mean(), df['Stok Tersedia'].std(), 365)
+
+    df_2025 = pd.DataFrame({
+        "Tanggal": tgl_2025,
+        "Harga Satuan": np.round(harga_simulasi, -2),
+        "Stok Tersedia": np.round(stok_simulasi).astype(int)
+    })
+    X_2025 = sm.add_constant(df_2025[['Harga Satuan', 'Stok Tersedia']])
+    df_2025['Prediksi Penjualan'] = model.predict(X_2025)
+    df_2025['Bulan'] = df_2025['Tanggal'].dt.to_period("M")
+
+    st.subheader("Tabel Prediksi Harian")
+    st.dataframe(df_2025.head(30))
+
+    st.subheader("Grafik Prediksi Penjualan per Bulan")
+    monthly_pred = df_2025.groupby("Bulan")["Prediksi Penjualan"].sum()
+    fig4, ax4 = plt.subplots()
+    monthly_pred.plot(kind="bar", color="orange", ax=ax4)
+    ax4.set_xlabel("Bulan")
+    ax4.set_ylabel("Total Prediksi Penjualan")
+    ax4.set_title("Prediksi Penjualan Bulanan Tahun 2025")
+    plt.xticks(rotation=45)
+    st.pyplot(fig4)
