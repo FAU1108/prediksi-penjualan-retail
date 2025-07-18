@@ -64,7 +64,7 @@ with st.expander("📉 Visualisasi Prediksi vs Aktual"):
 
 with st.expander("📌 Uji Asumsi Klasik (Normalitas Residual)"):
     residuals = y_test - y_pred
-    # Dihardcode berdasarkan hasil dari file kamu
+    # Hasil Shapiro-Wilk dari file kamu (dihardcode)
     stat = 0.9976
     p = 0.8828
 
@@ -91,13 +91,24 @@ with st.expander("📐 Uji Signifikansi (F & T Test)"):
     else:
         st.error(f"❌ Uji F tidak signifikan (p = {ols.f_pvalue:.4f})")
 
-with st.expander("📉 Scatter Residual vs Nilai Prediksi (Linearity Check)"):
+with st.expander("📊 Scatter Plot Korelasi Fitur vs Target"):
+    numeric_cols = X.select_dtypes(include=[np.number]).columns
+    selected_col = st.selectbox("Pilih fitur untuk diplot terhadap Unit_Terjual", numeric_cols)
+
+    fig3, ax3 = plt.subplots()
+    sns.scatterplot(x=df[selected_col], y=y, ax=ax3)
+    ax3.set_xlabel(selected_col)
+    ax3.set_ylabel("Unit_Terjual")
+    ax3.set_title(f"Scatter Plot: {selected_col} vs Unit_Terjual")
+    st.pyplot(fig3)
+
+with st.expander("📉 Scatter Residual vs Nilai Prediksi (Linearitas)"):
     residuals = y_test - y_pred
+
     fig4, ax4 = plt.subplots()
-    ax4.scatter(y_pred, residuals, alpha=0.6)
-    ax4.axhline(0, color='red', linestyle='--', linewidth=1)
+    ax4.scatter(y_pred, residuals, color='steelblue', edgecolor='black', alpha=0.8)
+    ax4.axhline(y=0, color='red', linestyle='--', linewidth=1.5)
     ax4.set_xlabel("Nilai Prediksi")
     ax4.set_ylabel("Residual")
     ax4.set_title("Scatter Residual vs Nilai Prediksi (Linearitas)")
     st.pyplot(fig4)
-
