@@ -1,116 +1,129 @@
+# === IMPORTS ===
 import streamlit as st
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
+from sklearn.linear_model import LinearRegression
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 import statsmodels.api as sm
-from statsmodels.stats.outliers_influence import variance_inflation_factor
 from statsmodels.stats.diagnostic import het_breuschpagan
 from scipy.stats import shapiro
+from statsmodels.stats.outliers_influence import variance_inflation_factor
 
-# Load data
+# === PAGE CONFIG ===
+st.set_page_config(layout="wide", page_title="Dashboard Prediksi Penjualan Retail")
+st.title("📊 Dashboard Prediksi Permintaan Produk Retail")
+
+# === LOAD DATA ===
 @st.cache_data
 def load_data():
     df = pd.read_csv("Dataset_Permintaan_Produk_Retail_2024.csv")
-    df['Tanggal'] = pd.to_datetime(df['Tanggal'])
+    df['Stok Tersedia'] = pd.to_numeric(df['Stok Tersedia'], errors='coerce')
+    df['Harga Satuan'] = pd.to_numeric(df['Harga Satuan'], errors='coerce')
+    df['Penjualan (Unit)'] = pd.to_numeric(df['Penjualan (Unit)'], errors='coerce')
+    df.dropna(subset=['Stok Tersedia', 'Harga Satuan', 'Penjualan (Unit)'], inplace=True)
     return df
 
 df = load_data()
+st.subheader("Cuplikan Data")
+st.dataframe(df.head())
 
-# Setup regresi
-X = sm.add_constant(df[['Harga Satuan', 'Stok Tersedia']], has_constant='add')
-y = df['Penjualan (Unit)']
-model = sm.OLS(y, X).fit()
-y_pred = model.predict(X)
-residuals = y - y_pred
+# === PREPROCESSING ===
+df_encoded = pd.get_dummies(df, columns=['Kategori Produk'], drop_first=True)
+X = df_encoded.drop(columns=['Tanggal', 'Lokasi', 'Penjualan (Unit)'])
+y = df_encoded['Penjualan (Unit)']
 
-# Streamlit UI
-st.set_page_config(layout="wide")
-st.title("📊 Dashboard Prediksi Permintaan Produk Retail")
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-menu = st.sidebar.radio("Navigasi", [
-    "Evaluasi Model", 
-    "Uji Asumsi Klasik", 
-    "Visualisasi Prediksi", 
-    "Simulasi Prediksi Manual", 
-    "Data Historis"
-])
+# === MODEL TRAINING ===
+model = LinearRegression()
+model.fit(X_train, y_train)
+y_pred = model.predict(X_test)
+residuals = y_test - y_pred
 
-if menu == "Evaluasi Model":
-    st.header("📌 Evaluasi Model Regresi")
-    mse = np.mean((y - y_pred)**2)
-    rmse = np.sqrt(mse)
-    mae = np.mean(np.abs(y - y_pred))
-    r2 = model.rsquared
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("R-squared", f"{r2:.3f}")
-    col2.metric("MSE", f"{mse:.2f}")
-    col3.metric("RMSE", f"{rmse:.2f}")
-    col4.metric("MAE", f"{mae:.2f}")
+# === METRICS ===
+r2 = r2_score(y_test, y_pred)
+mse = mean_squared_error(y_test, y_pred)
+rmse = np.sqrt(mse)
+mae = mean_absolute_error(y_test, y_pred)
 
-    fig, ax = plt.subplots(figsize=(5, 4))
-    ax.scatter(y, y_pred, alpha=0.6, color='blue')
-    ax.plot([y.min(), y.max()], [y.min(), y.max()], 'r--')
-    ax.set_xlabel("Aktual")
-    ax.set_ylabel("Prediksi")
-    ax.set_title("Aktual vs Prediksi")
+# === UJI ASUMSI ===
+X_train_sm = sm.add_constant(X_train)
+model_sm = sm.OLS(y_train, X_train_sm).fit()
+resid = model_sm.resid
+
+shapiro_stat, shapiro_pvalue = shapiro(resid)
+bp_test = het_breuschpagan(resid, model_sm.model.exog)
+bp_pvalue = bp_test[1]
+
+vif_df = pd.DataFrame()
+vif_df['Fitur'] = X_train.columns
+vif_df['VIF'] = [variance_inflation_factor(X_train.values, i) for i in range(X_train.shape[1])]
+
+# === INPUT PREDIKSI ===
+st.sidebar.header("🧮 Simulasi Prediksi")
+kategori = st.sidebar.selectbox("Kategori Produk", df['Kategori Produk'].unique())
+harga = st.sidebar.number_input("Harga Satuan", min_value=1000, max_value=100000, value=25000)
+stok = st.sidebar.slider("Stok Tersedia", 0, 500, 100)
+
+input_df = pd.DataFrame({
+    'Harga Satuan': [harga],
+    'Stok Tersedia': [stok],
+})
+
+for cat in X.columns:
+    if "Kategori Produk_" in cat:
+        input_df[cat] = 1 if cat == f"Kategori Produk_{kategori}" else 0
+
+for col in X.columns:
+    if col not in input_df.columns:
+        input_df[col] = 0
+
+input_df = input_df[X.columns]  # urutkan
+prediksi = model.predict(input_df)[0]
+
+st.sidebar.metric("📈 Prediksi Penjualan", f"{prediksi:.0f} unit")
+
+# === TABS ===
+tab1, tab2, tab3 = st.tabs(["Evaluasi Model", "Uji Asumsi", "Visualisasi"])
+
+with tab1:
+    st.subheader("Evaluasi Model")
+    st.metric("R-squared", f"{r2:.3f}")
+    st.metric("MAE", f"{mae:.2f}")
+    st.metric("RMSE", f"{rmse:.2f}")
+
+with tab2:
+    st.subheader("Uji Asumsi Klasik")
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.write("### Uji Normalitas (Shapiro-Wilk)")
+        st.write(f"P-value: {shapiro_pvalue:.4f}")
+        st.success("Lolos" if shapiro_pvalue > 0.05 else "Tidak Lolos")
+
+        st.write("### Uji Homoskedastisitas (Breusch-Pagan)")
+        st.write(f"P-value: {bp_pvalue:.4f}")
+        st.success("Lolos" if bp_pvalue > 0.05 else "Tidak Lolos")
+
+    with col2:
+        st.write("### Multikolinearitas (VIF)")
+        st.dataframe(vif_df)
+
+with tab3:
+    st.subheader("Distribusi Residual")
+    fig, ax = plt.subplots()
+    sns.histplot(residuals, kde=True, ax=ax)
     st.pyplot(fig)
 
-elif menu == "Uji Asumsi Klasik":
-    st.header("🧪 Uji Asumsi Klasik")
-    shapiro_p = shapiro(residuals)[1]
-    bp_p = het_breuschpagan(residuals, X)[1]
-    vif_df = pd.DataFrame()
-    vif_df["Fitur"] = X.columns
-    vif_df["VIF"] = [variance_inflation_factor(X.values, i) for i in range(X.shape[1])]
+    st.subheader("Aktual vs Prediksi")
+    fig2, ax2 = plt.subplots()
+    ax2.scatter(y_test, y_pred)
+    ax2.plot([y_test.min(), y_test.max()], [y_test.min(), y_test.max()], 'r--')
+    ax2.set_xlabel("Aktual")
+    ax2.set_ylabel("Prediksi")
+    st.pyplot(fig2)
 
-    st.write("### Normalitas Residual (Shapiro-Wilk)")
-    st.write(f"P-Value: {shapiro_p:.4f}")
-    st.success("✅ Lolos uji normalitas" if shapiro_p > 0.05 else "❌ Tidak lolos")
-
-    st.write("### Homoskedastisitas (Breusch-Pagan)")
-    st.write(f"P-Value: {bp_p:.4f}")
-    st.success("✅ Lolos homoskedastisitas" if bp_p > 0.05 else "❌ Tidak lolos")
-
-    st.write("### Multikolinearitas (VIF)")
-    st.dataframe(vif_df)
-
-    st.write("### Uji Signifikansi (F & T)")
-    st.write(f"**P-Value Uji F:** {model.f_pvalue:.4e}")
-    signifikan = model.pvalues < 0.05
-    hasil = pd.DataFrame({
-        "Fitur": model.params.index,
-        "Koefisien": model.params.values,
-        "P-Value": model.pvalues.values,
-        "Signifikan": signifikan.values
-    })
-    hasil = hasil[hasil['Fitur'] != 'const']
-    st.dataframe(hasil)
-
-elif menu == "Visualisasi Prediksi":
-    st.header("📈 Visualisasi Penjualan Bulanan")
-    df_bulanan = df.resample('M', on='Tanggal').sum(numeric_only=True)
-    fig, ax = plt.subplots(figsize=(5, 4))
-    df_bulanan['Penjualan (Unit)'].plot(kind='bar', ax=ax, color='orange')
-    ax.set_title("Total Penjualan per Bulan")
-    ax.set_ylabel("Unit Terjual")
-    st.pyplot(fig)
-
-elif menu == "Simulasi Prediksi Manual":
-    st.header("📌 Simulasi Prediksi Manual")
-    st.write("Masukkan harga dan stok untuk memprediksi penjualan.")
-    harga = st.number_input("Harga Satuan", min_value=0, value=int(df['Harga Satuan'].mean()))
-    stok = st.number_input("Stok Tersedia", min_value=0, value=int(df['Stok Tersedia'].mean()))
-
-    input_df = pd.DataFrame({
-        "const": [1],
-        "Harga Satuan": [harga],
-        "Stok Tersedia": [stok]
-    })
-
-    pred = model.predict(input_df)[0]
-    st.metric("📈 Prediksi Penjualan", f"{pred:.0f} unit")
-
-elif menu == "Data Historis":
-    st.header("📂 Data Historis Penjualan")
-    st.dataframe(df)
+st.caption("Dashboard ini menyatukan simulasi prediksi + validasi asumsi model seperti di laporan PPT.")
