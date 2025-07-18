@@ -14,21 +14,25 @@ from statsmodels.stats.diagnostic import het_breuschpagan
 def load_data():
     df = pd.read_csv("Dataset_Permintaan_Produk_Retail_2024.csv")
     df['Tanggal'] = pd.to_datetime(df['Tanggal'])
-    df = pd.get_dummies(df, columns=["Kategori_Produk"], drop_first=True)
+
+    # Hapus kolom nama produk, encode kategori
+    df = df.drop(columns=['Nama_Produk'])
+    df = pd.get_dummies(df, columns=["Kategori"], drop_first=True)
+
     return df
 
 df = load_data()
 
-# === MODEL PREPARATION ===
-X = df.drop(["Penjualan", "Tanggal"], axis=1)
-y = df["Penjualan"]
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+# === PERSIAPAN MODEL ===
+X = df.drop(["Jumlah_Terjual", "Tanggal"], axis=1)
+y = df["Jumlah_Terjual"]
 
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 model = LinearRegression().fit(X_train, y_train)
 y_pred = model.predict(X_test)
 residuals = y_test - y_pred
 
-# === DASHBOARD ===
+# === DASHBOARD STREAMLIT ===
 st.title("📊 Dashboard Prediksi Permintaan Produk Retail")
 
 menu = st.selectbox("Pilih Analisis:", 
@@ -37,9 +41,9 @@ menu = st.selectbox("Pilih Analisis:",
 if menu == "Evaluasi Model":
     st.subheader("📈 Evaluasi Model Regresi")
     st.metric("R-squared (R²)", round(r2_score(y_test, y_pred), 3))
-    st.metric("Mean Absolute Error (MAE)", round(mean_absolute_error(y_test, y_pred), 2))
-    st.metric("Mean Squared Error (MSE)", round(mean_squared_error(y_test, y_pred), 2))
-    st.metric("Root MSE (RMSE)", round(mean_squared_error(y_test, y_pred, squared=False), 2))
+    st.metric("MAE", round(mean_absolute_error(y_test, y_pred), 2))
+    st.metric("MSE", round(mean_squared_error(y_test, y_pred), 2))
+    st.metric("RMSE", round(mean_squared_error(y_test, y_pred, squared=False), 2))
 
 elif menu == "Uji Asumsi Klasik":
     st.subheader("🧪 Uji Linearitas")
