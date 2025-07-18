@@ -14,10 +14,10 @@ from scipy.stats import shapiro
 df = pd.read_csv("Dataset_Permintaan_Produk_Retail_2024.csv")
 df['Tanggal'] = pd.to_datetime(df['Tanggal'])
 df['Bulan'] = df['Tanggal'].dt.month
-df['Kategori_Produk'] = df['Kategori_Produk'].astype(str)
+df['Kategori Produk'] = df['Kategori Produk'].astype(str)
 
 # One-hot encoding
-df_encoded = pd.get_dummies(df, columns=["Kategori_Produk"], prefix="Kategori")
+df_encoded = pd.get_dummies(df, columns=["Kategori Produk"], prefix="Kategori")
 X = df_encoded.drop(columns=["Tanggal", "Lokasi", "Penjualan (Unit)"])
 y = df_encoded["Penjualan (Unit)"]
 
