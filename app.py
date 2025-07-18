@@ -28,14 +28,13 @@ df.rename(columns={
     "Stok Tersedia": "Stok_Tersedia"
 }, inplace=True)
 
-# One-hot encoding untuk kategori
 df = pd.get_dummies(df, columns=["Kategori"], drop_first=True)
 
 # Fitur dan target
 X = df.drop(columns=["Tanggal", "Lokasi", "Harga Satuan", "Unit_Terjual"], errors="ignore")
 y = df["Unit_Terjual"]
 
-# Split data
+# Split
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
 # Model
@@ -66,6 +65,7 @@ with st.expander("📉 Visualisasi Prediksi vs Aktual"):
     st.pyplot(fig)
 
 with st.expander("📌 Uji Asumsi Klasik"):
+    # LINEARITAS
     st.markdown("### ✅ Uji Linearitas")
     fig4, ax4 = plt.subplots()
     ax4.scatter(y_pred, residuals, color='steelblue', edgecolor='black', alpha=0.8)
@@ -76,8 +76,8 @@ with st.expander("📌 Uji Asumsi Klasik"):
     st.pyplot(fig4)
     st.success("✅ Pola residual acak: Linearitas terpenuhi")
 
+    # NORMALITAS RESIDUAL (Dari file)
     st.markdown("### ✅ Uji Normalitas Residual (Shapiro-Wilk)")
-    # Dihardcode dari hasil kamu
     stat = 0.9976
     p_norm = 0.8828
     st.write(f"Shapiro-Wilk statistic: {stat:.4f}")
@@ -87,9 +87,12 @@ with st.expander("📌 Uji Asumsi Klasik"):
     else:
         st.error("❌ Residual tidak normal")
 
+    # HOMOSKEDASTISITAS (pakai data train)
     st.markdown("### ✅ Uji Homoskedastisitas (Breusch-Pagan)")
+    train_pred = model.predict(X_train)
+    train_residuals = y_train - train_pred
     X_bp = sm.add_constant(X_train.select_dtypes(include=[np.number]))
-    bp_test = het_breuschpagan(residuals, X_bp)
+    bp_test = het_breuschpagan(train_residuals, X_bp)
     p_bp = bp_test[1]
     st.write(f"Breusch-Pagan p-value: `{p_bp:.4f}`")
     if p_bp > 0.05:
@@ -101,6 +104,7 @@ with st.expander("📐 Uji Signifikansi Model"):
     X2 = sm.add_constant(X_train.select_dtypes(include=[np.number]))
     ols = sm.OLS(y_train, X2).fit()
 
+    # UJI F
     st.markdown("### ✅ Uji F (Model Signifikan)")
     f_p = ols.f_pvalue
     st.write(f"p-value uji F: `{f_p:.4f}`")
@@ -109,6 +113,7 @@ with st.expander("📐 Uji Signifikansi Model"):
     else:
         st.error("❌ Model tidak signifikan")
 
+    # UJI T
     st.markdown("### ✅ Uji T (Koefisien Individu)")
     t_pvalues = ols.pvalues.drop("const", errors="ignore")
     gagal = t_pvalues[t_pvalues > 0.05]
