@@ -26,8 +26,7 @@ menu = st.sidebar.selectbox("Pilih Halaman Dashboard", [
     "Uji Asumsi Klasik",
     "Uji Signifikansi",
     "Visualisasi Aktual vs Prediksi",
-    "Prediksi Manual",
-    "Prediksi Tahun 2025"
+    "Prediksi Berdasarkan Kategori"
 ])
 
 # ========================== Model Setup =============================
@@ -45,7 +44,7 @@ X_vif = X.drop(columns='const')
 if menu == "Visualisasi Penjualan Bulanan":
     st.header("1. Visualisasi Tren Penjualan per Bulan")
     monthly_sales = df.groupby('Bulan')["Penjualan (Unit)"].sum()
-    fig1, ax1 = plt.subplots()
+    fig1, ax1 = plt.subplots(figsize=(6, 4))
     monthly_sales.plot(kind='bar', color='skyblue', ax=ax1)
     ax1.set_xlabel("Bulan")
     ax1.set_ylabel("Jumlah Penjualan")
@@ -72,7 +71,7 @@ elif menu == "Uji Asumsi Klasik":
     st.header("3. Uji Asumsi Klasik")
 
     with st.expander("3.1 Linearitas"):
-        fig2, ax2 = plt.subplots()
+        fig2, ax2 = plt.subplots(figsize=(6, 4))
         sns.scatterplot(x=pred, y=residuals, ax=ax2)
         ax2.axhline(0, color='red', linestyle='--')
         ax2.set_xlabel("Prediksi")
@@ -127,7 +126,7 @@ elif menu == "Uji Signifikansi":
 # ========================== PAGE 5 =============================
 elif menu == "Visualisasi Aktual vs Prediksi":
     st.header("5. Visualisasi Aktual vs Prediksi")
-    fig3, ax3 = plt.subplots()
+    fig3, ax3 = plt.subplots(figsize=(6, 4))
     ax3.scatter(y, pred, alpha=0.5, color='green')
     ax3.plot([y.min(), y.max()], [y.min(), y.max()], 'r--')
     ax3.set_xlabel("Aktual")
@@ -136,45 +135,25 @@ elif menu == "Visualisasi Aktual vs Prediksi":
     st.pyplot(fig3)
 
 # ========================== PAGE 6 =============================
-elif menu == "Prediksi Manual":
-    st.header("6. Prediksi Permintaan (Input Manual)")
-    with st.form("manual_input"):
-        harga = st.number_input("Harga Satuan", min_value=0.0, step=100.0)
-        stok = st.number_input("Stok Tersedia", min_value=0.0, step=1.0)
-        submit = st.form_submit_button("Prediksi")
-        if submit:
-            new_X = pd.DataFrame({"const": [1], "Harga Satuan": [harga], "Stok Tersedia": [stok]})
-            pred_manual = model.predict(new_X)[0]
-            st.success(f"Prediksi Penjualan: {pred_manual:.2f} unit")
+elif menu == "Prediksi Berdasarkan Kategori":
+    st.header("6. Prediksi Permintaan Berdasarkan Kategori Produk")
+    kategori = st.selectbox("Pilih Kategori Produk", df['Kategori Produk'].unique())
+    df_kat = df[df['Kategori Produk'] == kategori]
+    X_kat = sm.add_constant(df_kat[['Harga Satuan', 'Stok Tersedia']])
+    pred_kat = model.predict(X_kat)
 
-# ========================== PAGE 7 =============================
-elif menu == "Prediksi Tahun 2025":
-    st.header("7. Prediksi Penjualan Tahun 2025")
+    df_kat = df_kat.copy()
+    df_kat['Prediksi Penjualan'] = pred_kat
 
-    # Simulasi data 2025
-    tgl_2025 = pd.date_range("2025-01-01", periods=365)
-    np.random.seed(42)
-    harga_simulasi = np.random.normal(df['Harga Satuan'].mean(), df['Harga Satuan'].std(), 365)
-    stok_simulasi = np.random.normal(df['Stok Tersedia'].mean(), df['Stok Tersedia'].std(), 365)
+    st.dataframe(df_kat[['Tanggal', 'Harga Satuan', 'Stok Tersedia', 'Penjualan (Unit)', 'Prediksi Penjualan']].head(20))
 
-    df_2025 = pd.DataFrame({
-        "Tanggal": tgl_2025,
-        "Harga Satuan": np.round(harga_simulasi, -2),
-        "Stok Tersedia": np.round(stok_simulasi).astype(int)
-    })
-    X_2025 = sm.add_constant(df_2025[['Harga Satuan', 'Stok Tersedia']])
-    df_2025['Prediksi Penjualan'] = model.predict(X_2025)
-    df_2025['Bulan'] = df_2025['Tanggal'].dt.to_period("M")
-
-    st.subheader("Tabel Prediksi Harian")
-    st.dataframe(df_2025.head(30))
-
-    st.subheader("Grafik Prediksi Penjualan per Bulan")
-    monthly_pred = df_2025.groupby("Bulan")["Prediksi Penjualan"].sum()
-    fig4, ax4 = plt.subplots()
-    monthly_pred.plot(kind="bar", color="orange", ax=ax4)
-    ax4.set_xlabel("Bulan")
-    ax4.set_ylabel("Total Prediksi Penjualan")
-    ax4.set_title("Prediksi Penjualan Bulanan Tahun 2025")
+    st.subheader("Visualisasi Aktual vs Prediksi")
+    fig5, ax5 = plt.subplots(figsize=(6, 4))
+    ax5.plot(df_kat['Tanggal'], df_kat['Penjualan (Unit)'], label='Aktual')
+    ax5.plot(df_kat['Tanggal'], df_kat['Prediksi Penjualan'], label='Prediksi', linestyle='--')
+    ax5.set_title(f"Aktual vs Prediksi - {kategori}")
+    ax5.set_xlabel("Tanggal")
+    ax5.set_ylabel("Unit")
+    ax5.legend()
     plt.xticks(rotation=45)
-    st.pyplot(fig4)
+    st.pyplot(fig5)
