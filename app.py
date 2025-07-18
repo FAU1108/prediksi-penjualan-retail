@@ -71,7 +71,9 @@ with st.expander("🧪 Uji Asumsi Klasik"):
 # === UJI SIGNIFIKANSI ===
 with st.expander("📊 Uji Signifikansi Model"):
     st.subheader("Uji F dan Uji t")
-    ols = sm.OLS(y_train, sm.add_constant(X_train)).fit()
+    X_train_ols = sm.add_constant(X_train).astype(float)
+    y_train_ols = y_train.astype(float)
+    ols = sm.OLS(y_train_ols, X_train_ols).fit()
     f_pvalue = ols.f_pvalue
     t_pvalues = ols.pvalues[1:]  # tanpa intercept
 
