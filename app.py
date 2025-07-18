@@ -1,111 +1,139 @@
+# app.py
 import streamlit as st
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
 import statsmodels.api as sm
-from sklearn.linear_model import LinearRegression
 from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
-from statsmodels.stats.outliers_influence import variance_inflation_factor
 from statsmodels.stats.diagnostic import het_breuschpagan
+from statsmodels.stats.outliers_influence import variance_inflation_factor
 from scipy.stats import shapiro
+import seaborn as sns
+import matplotlib.pyplot as plt
 
-st.set_page_config(layout="wide", page_title="Prediksi Permintaan Produk Retail")
+# Layout
+st.set_page_config(layout="wide")
+st.title("📊 BI Dashboard – Prediksi Permintaan Produk Retail di Jakarta Timur")
 
-st.title("📊 Prediksi Permintaan Produk Retail di Jakarta Timur")
-st.caption("Menggunakan Algoritma Regresi Linear")
+# Load Dataset
+df = pd.read_csv("Dataset_Permintaan_Produk_Retail_2024.csv")
 
-# Load data
-@st.cache_data
+# Pra-pemrosesan
+# One-hot kategori
+kategori_encoded = pd.get_dummies(df['Kategori Produk'], drop_first=True, dtype=int)
+df_encoded = pd.concat([df[['Stok Tersedia']], kategori_encoded], axis=1)
+X = df_encoded.astype(float)
+y = df['Jumlah Penjualan'].astype(float)
 
-def load_data():
-    df = pd.read_csv("Dataset_Permintaan_Produk_Retail_2024.csv")
-    df['Tanggal'] = pd.to_datetime(df['Tanggal'])
-    df['Harga Satuan'] = pd.to_numeric(df['Harga Satuan'], errors='coerce')
-    df['Stok Tersedia'] = pd.to_numeric(df['Stok Tersedia'], errors='coerce')
-    df['Penjualan (Unit)'] = pd.to_numeric(df['Penjualan (Unit)'], errors='coerce')
-    df.dropna(inplace=True)
-    return df
-
-df = load_data()
-
-# Sidebar input
-st.sidebar.header("🎯 Prediksi Manual")
-kategori = st.sidebar.selectbox("Kategori Produk", df['Kategori Produk'].unique())
-harga = st.sidebar.slider("Harga Satuan (Rp)", int(df['Harga Satuan'].min()), int(df['Harga Satuan'].max()), int(df['Harga Satuan'].mean()))
-stok = st.sidebar.slider("Stok Tersedia", int(df['Stok Tersedia'].min()), int(df['Stok Tersedia'].max()), int(df['Stok Tersedia'].mean()))
-
-# Preprocessing
-X = df[['Harga Satuan', 'Stok Tersedia']]
-y = df['Penjualan (Unit)']
+# Split data
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+# Model
 model = LinearRegression()
 model.fit(X_train, y_train)
 y_pred = model.predict(X_test)
+residuals = y_test - y_pred
 
-# Prediksi manual
-manual_pred = model.predict([[harga, stok]])[0]
-st.sidebar.metric("📈 Prediksi Penjualan", f"{manual_pred:.0f} unit")
+# Evaluasi Model
+r2 = r2_score(y_test, y_pred)
+mse = mean_squared_error(y_test, y_pred)
+rmse = np.sqrt(mse)
+mae = mean_absolute_error(y_test, y_pred)
 
-# Tabs
-with st.expander("📊 Data Ringkasan"):
-    st.dataframe(df.head())
-    st.write(f"Jumlah data: {df.shape[0]} baris")
+# Uji Asumsi
+X_train_sm = sm.add_constant(X_train)
+model_sm = sm.OLS(y_train, X_train_sm).fit()
 
-with st.expander("📉 Evaluasi Model"):
-    r2 = r2_score(y_test, y_pred)
-    mse = mean_squared_error(y_test, y_pred)
-    rmse = np.sqrt(mse)
-    mae = mean_absolute_error(y_test, y_pred)
+# Uji Normalitas: Shapiro-Wilk
+shapiro_stat, shapiro_p = shapiro(model_sm.resid)
 
-    st.metric("R-Squared", f"{r2:.3f}")
+# Uji Homoskedastisitas: Breusch-Pagan
+bp_test = het_breuschpagan(model_sm.resid, model_sm.model.exog)
+bp_pvalue = bp_test[1]
+
+# VIF
+vif_df = pd.DataFrame()
+vif_df["Fitur"] = X_train.columns
+vif_df["VIF"] = [variance_inflation_factor(X_train.values, i) for i in range(X_train.shape[1])]
+
+# Uji Signifikansi
+f_pval = model_sm.f_pvalue
+coefs_df = pd.DataFrame({
+    "Fitur": X.columns,
+    "Koefisien": model.coef_,
+    "P-value (t-test)": model_sm.pvalues.drop("const")
+})
+
+# TAB 1 – Evaluasi Model
+with st.expander("📌 Evaluasi Model"):
+    st.metric("R-squared (R²)", f"{r2:.3f}")
     st.metric("RMSE", f"{rmse:.2f}")
     st.metric("MAE", f"{mae:.2f}")
+    st.metric("MSE", f"{mse:.2f}")
 
+# TAB 2 – Uji Asumsi Klasik
 with st.expander("🧪 Uji Asumsi Klasik"):
-    X_train_sm = sm.add_constant(X_train)
-    X_train_sm = X_train_sm.astype(float)
-    y_train = y_train.astype(float)
-    model_sm = sm.OLS(y_train, X_train_sm).fit()
-    resid = model_sm.resid
+    st.subheader("1. Normalitas (Shapiro-Wilk)")
+    st.write(f"P-value: `{shapiro_p:.4f}`")
+    if shapiro_p > 0.05:
+        st.success("Residual terdistribusi normal")
+    else:
+        st.error("Residual tidak normal")
 
-    # Uji normalitas
-    stat, p_normal = shapiro(resid)
-    st.write("### Uji Normalitas (Shapiro-Wilk)")
-    st.write(f"p-value = {p_normal:.4f}")
-    st.success("Residual terdistribusi normal") if p_normal > 0.05 else st.error("Residual tidak normal")
+    st.subheader("2. Homoskedastisitas (Breusch-Pagan)")
+    st.write(f"P-value: `{bp_pvalue:.4f}`")
+    if bp_pvalue > 0.05:
+        st.success("Tidak ada heteroskedastisitas")
+    else:
+        st.error("Terdapat heteroskedastisitas")
 
-    # Uji homoskedastisitas
-    _, p_bp, _, _ = het_breuschpagan(resid, X_train_sm)
-    st.write("### Uji Homoskedastisitas (Breusch-Pagan)")
-    st.write(f"p-value = {p_bp:.4f}")
-    st.success("Homoskedastisitas terpenuhi") if p_bp > 0.05 else st.error("Terdapat heteroskedastisitas")
-
-    # VIF
-    st.write("### Multikolinearitas (VIF)")
-    X_vif = X_train.astype(float).dropna()
-    vif_df = pd.DataFrame()
-    vif_df['Fitur'] = X_vif.columns
-    vif_df['VIF'] = [variance_inflation_factor(X_vif.values, i) for i in range(X_vif.shape[1])]
+    st.subheader("3. Multikolinearitas (VIF)")
     st.dataframe(vif_df)
+    if (vif_df['VIF'] > 5).any():
+        st.error("Terdapat multikolinearitas tinggi")
+    else:
+        st.success("Multikolinearitas aman")
 
-with st.expander("📈 Visualisasi"):
-    col1, col2 = st.columns(2)
-    with col1:
-        st.write("### Scatter Plot")
-        fig1, ax1 = plt.subplots(figsize=(5,3))
-        sns.scatterplot(x=y_test, y=y_pred, ax=ax1)
-        ax1.set_xlabel("Aktual")
-        ax1.set_ylabel("Prediksi")
-        ax1.set_title("Aktual vs Prediksi")
-        st.pyplot(fig1)
-    with col2:
-        st.write("### Residual Histogram")
-        fig2, ax2 = plt.subplots(figsize=(5,3))
-        sns.histplot(resid, kde=True, ax=ax2)
-        ax2.set_title("Distribusi Residual")
-        st.pyplot(fig2)
+# TAB 3 – Uji Signifikansi Model
+with st.expander("📈 Uji Signifikansi"):
+    st.subheader("Uji F")
+    st.write(f"P-value: `{f_pval:.4f}`")
+    if f_pval < 0.05:
+        st.success("Model signifikan secara keseluruhan")
+    else:
+        st.error("Model tidak signifikan")
 
-st.markdown("---")
-st.caption("Dashboard ini disesuaikan dengan struktur dan isi presentasi Anda.")
+    st.subheader("Uji t per Variabel")
+    st.dataframe(coefs_df)
+
+# TAB 4 – Visualisasi
+with st.expander("📊 Visualisasi"):
+    fig1, ax1 = plt.subplots()
+    sns.histplot(residuals, kde=True, ax=ax1)
+    ax1.set_title("Distribusi Residual")
+    st.pyplot(fig1)
+
+    fig2, ax2 = plt.subplots()
+    ax2.scatter(y_test, y_pred, alpha=0.5)
+    ax2.plot([y_test.min(), y_test.max()], [y_test.min(), y_test.max()], 'r--')
+    ax2.set_xlabel("Aktual")
+    ax2.set_ylabel("Prediksi")
+    ax2.set_title("Prediksi vs Aktual")
+    st.pyplot(fig2)
+
+# TAB 5 – Simulasi Prediksi Manual
+with st.expander("🧮 Simulasi Prediksi Manual"):
+    kategori_list = df['Kategori Produk'].unique().tolist()
+    stok_input = st.number_input("Stok Tersedia", value=150)
+    kategori_input = st.selectbox("Kategori Produk", kategori_list)
+
+    input_data = pd.DataFrame(columns=X.columns)
+    input_data.loc[0] = 0
+    input_data.loc[0, 'Stok Tersedia'] = stok_input
+
+    if f"{kategori_input}" in kategori_encoded.columns:
+        input_data.loc[0, f"{kategori_input}"] = 1
+
+    pred_manual = model.predict(input_data)[0]
+    st.metric("Prediksi Penjualan", f"{pred_manual:.0f} unit")
