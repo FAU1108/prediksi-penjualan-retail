@@ -139,7 +139,8 @@ elif menu == "Prediksi Berdasarkan Kategori":
     st.header("6. Prediksi Permintaan Berdasarkan Kategori Produk")
     kategori = st.selectbox("Pilih Kategori Produk", df['Kategori Produk'].unique())
     df_kat = df[df['Kategori Produk'] == kategori]
-    X_kat = sm.add_constant(df_kat[['Harga Satuan', 'Stok Tersedia']])
+    X_kat = sm.add_constant(df_kat[['Harga Satuan', 'Stok Tersedia']], has_constant='add')
+    X_kat = X_kat[X.columns]  # pastikan urutan kolom sama
     pred_kat = model.predict(X_kat)
 
     df_kat = df_kat.copy()
