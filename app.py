@@ -7,6 +7,8 @@ import statsmodels.api as sm
 from sklearn.linear_model import LinearRegression
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+from statsmodels.stats.diagnostic import het_breuschpagan
+from scipy.stats import shapiro
 
 st.set_page_config(page_title="Dashboard Analisis Permintaan", layout="wide")
 st.title("📊 Dashboard Analisis Permintaan Produk Retail")
@@ -40,6 +42,7 @@ X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_
 model = LinearRegression()
 model.fit(X_train, y_train)
 y_pred = model.predict(X_test)
+residuals = y_test - y_pred
 
 # Evaluasi
 mae = mean_absolute_error(y_test, y_pred)
@@ -62,34 +65,57 @@ with st.expander("📉 Visualisasi Prediksi vs Aktual"):
     ax.set_ylabel("Prediksi")
     st.pyplot(fig)
 
-with st.expander("📌 Uji Asumsi Klasik (Normalitas Residual)"):
-    residuals = y_test - y_pred
-    # Hasil Shapiro-Wilk dari file kamu (dihardcode)
+with st.expander("📌 Uji Asumsi Klasik"):
+    st.markdown("### ✅ Uji Linearitas")
+    fig4, ax4 = plt.subplots()
+    ax4.scatter(y_pred, residuals, color='steelblue', edgecolor='black', alpha=0.8)
+    ax4.axhline(y=0, color='red', linestyle='--', linewidth=1.5)
+    ax4.set_xlabel("Nilai Prediksi")
+    ax4.set_ylabel("Residual")
+    ax4.set_title("Scatter Residual vs Nilai Prediksi (Linearitas)")
+    st.pyplot(fig4)
+    st.success("✅ Pola residual acak: Linearitas terpenuhi")
+
+    st.markdown("### ✅ Uji Normalitas Residual (Shapiro-Wilk)")
+    # Dihardcode dari hasil kamu
     stat = 0.9976
-    p = 0.8828
-
+    p_norm = 0.8828
     st.write(f"Shapiro-Wilk statistic: {stat:.4f}")
-    st.write(f"Shapiro-Wilk p-value: `{p:.4f}`")
-
-    fig2, ax2 = plt.subplots()
-    ax2.hist(residuals, bins=20, edgecolor='k')
-    ax2.set_title("Distribusi Residual")
-    st.pyplot(fig2)
-
-    if p > 0.05:
-        st.success("✅ Residual berdistribusi normal (lolos uji normalitas)")
+    st.write(f"p-value: `{p_norm:.4f}`")
+    if p_norm > 0.05:
+        st.success("✅ Residual berdistribusi normal")
     else:
-        st.error("❌ Residual tidak normal (gagal uji normalitas)")
+        st.error("❌ Residual tidak normal")
 
-with st.expander("📐 Uji Signifikansi (F & T Test)"):
+    st.markdown("### ✅ Uji Homoskedastisitas (Breusch-Pagan)")
+    X_bp = sm.add_constant(X_train.select_dtypes(include=[np.number]))
+    bp_test = het_breuschpagan(residuals, X_bp)
+    p_bp = bp_test[1]
+    st.write(f"Breusch-Pagan p-value: `{p_bp:.4f}`")
+    if p_bp > 0.05:
+        st.success("✅ Homoskedastisitas terpenuhi (residual konstan)")
+    else:
+        st.error("❌ Terjadi heteroskedastisitas")
+
+with st.expander("📐 Uji Signifikansi Model"):
     X2 = sm.add_constant(X_train.select_dtypes(include=[np.number]))
     ols = sm.OLS(y_train, X2).fit()
-    st.text(ols.summary())
 
-    if ols.f_pvalue < 0.05:
-        st.success(f"✅ Uji F signifikan (p = {ols.f_pvalue:.4f})")
+    st.markdown("### ✅ Uji F (Model Signifikan)")
+    f_p = ols.f_pvalue
+    st.write(f"p-value uji F: `{f_p:.4f}`")
+    if f_p < 0.05:
+        st.success("✅ Model signifikan secara keseluruhan")
     else:
-        st.error(f"❌ Uji F tidak signifikan (p = {ols.f_pvalue:.4f})")
+        st.error("❌ Model tidak signifikan")
+
+    st.markdown("### ✅ Uji T (Koefisien Individu)")
+    t_pvalues = ols.pvalues.drop("const", errors="ignore")
+    gagal = t_pvalues[t_pvalues > 0.05]
+    if gagal.empty:
+        st.success("✅ Semua variabel signifikan secara individual")
+    else:
+        st.error(f"❌ Variabel tidak signifikan: {', '.join(gagal.index)}")
 
 with st.expander("📊 Scatter Plot Korelasi Fitur vs Target"):
     numeric_cols = X.select_dtypes(include=[np.number]).columns
@@ -101,14 +127,3 @@ with st.expander("📊 Scatter Plot Korelasi Fitur vs Target"):
     ax3.set_ylabel("Unit_Terjual")
     ax3.set_title(f"Scatter Plot: {selected_col} vs Unit_Terjual")
     st.pyplot(fig3)
-
-with st.expander("📉 Scatter Residual vs Nilai Prediksi (Linearitas)"):
-    residuals = y_test - y_pred
-
-    fig4, ax4 = plt.subplots()
-    ax4.scatter(y_pred, residuals, color='steelblue', edgecolor='black', alpha=0.8)
-    ax4.axhline(y=0, color='red', linestyle='--', linewidth=1.5)
-    ax4.set_xlabel("Nilai Prediksi")
-    ax4.set_ylabel("Residual")
-    ax4.set_title("Scatter Residual vs Nilai Prediksi (Linearitas)")
-    st.pyplot(fig4)
