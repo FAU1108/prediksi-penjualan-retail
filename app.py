@@ -17,40 +17,44 @@ def load_data():
 
 df = load_data()
 
-# Tampilkan kolom dataset
-st.write("📋 Kolom dalam dataset:", df.columns.tolist())
-
-# Rename kolom agar mudah diproses (opsional, untuk mempermudah pemanggilan)
+# Rename kolom agar seragam
 df.rename(columns={
     "Kategori Produk": "Kategori",
     "Penjualan (Unit)": "Unit_Terjual",
     "Stok Tersedia": "Stok_Tersedia"
 }, inplace=True)
 
-# Pastikan kolom penting ada
+# Tampilkan kolom dataset
+st.write("📋 Kolom dalam dataset:", df.columns.tolist())
+
+# Validasi kolom penting
 required_columns = ['Tanggal', 'Kategori', 'Stok_Tersedia', 'Unit_Terjual']
 missing = [col for col in required_columns if col not in df.columns]
 if missing:
     st.error(f"❌ Kolom berikut tidak ditemukan: {missing}")
     st.stop()
 
-# Pra-pemrosesan
+# Konversi Tanggal
 df['Tanggal'] = pd.to_datetime(df['Tanggal'])
 df['Kategori'] = df['Kategori'].astype(str)
 
-# One-hot encoding kategori
-df_encoded = pd.get_dummies(df, columns=['Kategori'], drop_first=True)
+# Opsi filter dropdown (opsional)
+st.sidebar.header("🔍 Filter Data (Opsional)")
+selected_kategori = st.sidebar.selectbox("Pilih Kategori Produk", df['Kategori'].unique())
+df_filtered = df[df['Kategori'] == selected_kategori]
 
+# One-hot encoding
+df_encoded = pd.get_dummies(df_filtered, columns=['Kategori'], drop_first=True)
+
+# Fitur dan target
 X = df_encoded.drop(columns=['Tanggal', 'Lokasi', 'Harga Satuan', 'Unit_Terjual'], errors='ignore')
 y = df_encoded['Unit_Terjual']
-
-# Cegah error karena NaN
 X = X.fillna(0)
 
-# Split data
+# Split
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-# Model regresi
+# Model
 model = LinearRegression()
 model.fit(X_train, y_train)
 y_pred = model.predict(X_test)
@@ -68,9 +72,8 @@ col2.metric("RMSE", f"{rmse:.2f}")
 col3.metric("MAE", f"{mae:.2f}")
 col4.metric("R²", f"{r2:.3f}")
 
-# Visualisasi hasil prediksi
+# Visualisasi
 st.subheader("🔍 Visualisasi: Aktual vs Prediksi")
-import matplotlib.pyplot as plt
 fig, ax = plt.subplots()
 ax.scatter(y_test, y_pred, alpha=0.6)
 ax.plot([y_test.min(), y_test.max()], [y_test.min(), y_test.max()], 'r--')
@@ -78,20 +81,16 @@ ax.set_xlabel("Aktual")
 ax.set_ylabel("Prediksi")
 st.pyplot(fig)
 
-# Uji asumsi klasik
-st.subheader("📌 Uji Asumsi Klasik")
+# Residuals
 residuals = y_test - y_pred
-
-# Residual scatter
+st.subheader("📌 Uji Asumsi Klasik")
 fig2, ax2 = plt.subplots()
 ax2.scatter(y_pred, residuals)
 ax2.axhline(0, color='red', linestyle='--')
-ax2.set_title("Scatter Residual")
 ax2.set_xlabel("Prediksi")
 ax2.set_ylabel("Residual")
 st.pyplot(fig2)
 
-# Uji Normalitas
 shapiro_stat, shapiro_p = shapiro(residuals)
 st.markdown(f"**Uji Normalitas (Shapiro-Wilk)**: p-value = `{shapiro_p:.4f}` {'✅ Normal' if shapiro_p > 0.05 else '❌ Tidak Normal'}")
 
@@ -101,14 +100,12 @@ est = sm.OLS(y_train, X2).fit()
 st.subheader("📊 Statistik Regresi: Uji F & T")
 st.text(est.summary())
 
-# Form input prediksi
-st.subheader("🔮 Prediksi Manual")
+# Prediksi manual
+st.subheader("🔮 Prediksi Permintaan Manual")
 stok_input = st.number_input("Masukkan Stok Tersedia", min_value=0)
+kategori_input = st.selectbox("Pilih Kategori untuk Prediksi", df['Kategori'].unique())
 
-kategori_list = df['Kategori'].unique()
-kategori_input = st.selectbox("Pilih Kategori", kategori_list)
-
-# Bangun input prediksi manual
+# Bangun fitur input manual
 input_data = {'Stok_Tersedia': stok_input}
 for col in df_encoded.columns:
     if col.startswith("Kategori_"):
@@ -119,4 +116,4 @@ input_df = input_df.reindex(columns=X.columns, fill_value=0)
 
 if st.button("Prediksi"):
     hasil = model.predict(input_df)[0]
-    st.success(f"📦 Prediksi penjualan: {hasil:.0f} unit")
+    st.success(f"📦 Prediksi penjualan untuk kategori **{kategori_input}** adalah: `{hasil:.0f}` unit")
