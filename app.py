@@ -30,11 +30,11 @@ y_pred = model.predict(X_test)
 # Residuals
 residuals = y_test - y_pred
 
-# Streamlit Layout
+# Layout
 st.set_page_config(page_title="Prediksi Penjualan", layout="wide")
 st.title("📊 Dashboard Prediksi Permintaan Produk Retail – Jakarta Timur")
 
-# === UJI ASUMSI ===
+# === UJI ASUMSI KLASIK ===
 with st.expander("🧪 Uji Asumsi Klasik"):
     st.subheader("1. Uji Linearitas (Scatter Residual vs Nilai Prediksi)")
     fig, ax = plt.subplots()
@@ -100,7 +100,29 @@ with st.expander("📈 Evaluasi Model"):
     st.write(f"RMSE: `{rmse:.2f}`")
     st.write(f"R² Score: `{r2:.2f}`")
 
-# === SIMULASI PREDIKSI ===
+# === VISUALISASI TREN PENJUALAN ===
+with st.expander("📅 Visualisasi Tren Penjualan per Bulan"):
+    st.subheader("Rata-rata Penjualan Tiap Bulan")
+
+    bulan_map = {
+        1: "Jan", 2: "Feb", 3: "Mar", 4: "Apr",
+        5: "Mei", 6: "Jun", 7: "Jul", 8: "Agu",
+        9: "Sep", 10: "Okt", 11: "Nov", 12: "Des"
+    }
+    df['Bulan_Nama'] = df['Bulan'].map(bulan_map)
+    trend_df = df.groupby('Bulan_Nama')['Penjualan (Unit)'].mean().reindex(
+        ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des']
+    )
+
+    fig, ax = plt.subplots(figsize=(10, 4))
+    ax.plot(trend_df.index, trend_df.values, marker='o', linestyle='-', color='blue')
+    ax.set_title("Tren Rata-rata Penjualan per Bulan")
+    ax.set_xlabel("Bulan")
+    ax.set_ylabel("Rata-rata Penjualan")
+    ax.grid(True)
+    st.pyplot(fig)
+
+# === SIMULASI PREDIKSI MANUAL ===
 with st.expander("🧪 Simulasi Prediksi Manual"):
     st.subheader("Prediksi Penjualan Produk Retail")
     st.markdown("**Jakarta Timur - Model Regresi Linier**")
