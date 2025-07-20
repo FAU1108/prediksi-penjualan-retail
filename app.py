@@ -69,7 +69,7 @@ with st.expander("🧪 Uji Asumsi Klasik"):
         st.error("❌ Terjadi heteroskedastisitas")
 
 # === UJI SIGNIFIKANSI ===
-with st.expander("📊 Uji Signifikansi Model"):
+with st.expander("📈 Uji Signifikansi Model"):
     st.subheader("Uji F dan Uji t")
     X_train_ols = sm.add_constant(X_train).astype(float)
     y_train_ols = y_train.astype(float)
@@ -101,7 +101,7 @@ with st.expander("📈 Evaluasi Model"):
     st.write(f"R² Score: `{r2:.2f}`")
 
 # === VISUALISASI TREN PENJUALAN ===
-with st.expander("📅 Visualisasi Tren Penjualan per Bulan"):
+with st.expander("🗕️ Visualisasi Tren Penjualan per Bulan"):
     st.subheader("Rata-rata Penjualan Tiap Bulan")
 
     bulan_map = {
@@ -122,26 +122,16 @@ with st.expander("📅 Visualisasi Tren Penjualan per Bulan"):
     ax.grid(True)
     st.pyplot(fig)
 
-# === SIMULASI PREDIKSI MANUAL ===
-with st.expander("🧪 Simulasi Prediksi Manual"):
-    st.subheader("Prediksi Penjualan Produk Retail")
-    st.markdown("**Jakarta Timur - Model Regresi Linier**")
+# === HASIL PREDIKSI AKTUAL VS MODEL ===
+with st.expander("🔢 Contoh Hasil Prediksi"):
+    st.subheader("Prediksi vs Aktual (10 Sampel Data Test)")
+    sample_index = X_test.sample(10, random_state=1).index
+    sample_input = X_test.loc[sample_index]
+    actual_values = y_test.loc[sample_index]
+    predicted_values = model.predict(sample_input)
 
-    kategori_cols = [col for col in X.columns if col.startswith("Kategori_")]
-    non_kategori_cols = [col for col in X.columns if col not in kategori_cols]
-
-    stok_val = st.number_input("Masukkan stok tersedia", min_value=0.0, value=50.0)
-    kategori_nama = [col.replace("Kategori_", "") for col in kategori_cols]
-    selected_kat = st.selectbox("Pilih kategori produk", kategori_nama)
-
-    input_data = {}
-    for col in non_kategori_cols:
-        input_data[col] = stok_val if 'stok' in col.lower() else df[col].mean()
-    for col in kategori_cols:
-        input_data[col] = 1 if col == f"Kategori_{selected_kat}" else 0
-
-    input_df = pd.DataFrame([input_data])
-
-    if st.button("Prediksi Penjualan"):
-        hasil = model.predict(input_df)[0]
-        st.success(f"📦 Prediksi penjualan: **{hasil:.0f} unit**")
+    df_prediksi = pd.DataFrame({
+        "Aktual": actual_values.values,
+        "Prediksi": predicted_values.astype(int)
+    })
+    st.table(df_prediksi)
