@@ -3,7 +3,6 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import statsmodels.api as sm
-from statsmodels.stats.outliers_influence import variance_inflation_factor
 from statsmodels.stats.diagnostic import het_breuschpagan
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
@@ -101,9 +100,8 @@ with st.expander("📈 Evaluasi Model"):
     st.write(f"R² Score: {r2:.2f}")
 
 # === VISUALISASI TREN PENJUALAN ===
-with st.expander("🗕️ Visualisasi Tren Penjualan per Bulan"):
+with st.expander("📅 Visualisasi Tren Penjualan per Bulan"):
     st.subheader("Rata-rata Penjualan Tiap Bulan")
-
     bulan_map = {
         1: "Jan", 2: "Feb", 3: "Mar", 4: "Apr",
         5: "Mei", 6: "Jun", 7: "Jul", 8: "Agu",
@@ -113,7 +111,6 @@ with st.expander("🗕️ Visualisasi Tren Penjualan per Bulan"):
     trend_df = df.groupby('Bulan_Nama')['Penjualan (Unit)'].mean().reindex(
         ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des']
     )
-
     fig, ax = plt.subplots(figsize=(10, 4))
     ax.plot(trend_df.index, trend_df.values, marker='o', linestyle='-', color='blue')
     ax.set_title("Tren Rata-rata Penjualan per Bulan")
@@ -121,31 +118,23 @@ with st.expander("🗕️ Visualisasi Tren Penjualan per Bulan"):
     ax.set_ylabel("Rata-rata Penjualan")
     ax.grid(True)
     st.pyplot(fig)
-    # === VISUALISASI TREN PER KATEGORI ===
+
+# === TREN PER KATEGORI ===
 with st.expander("📊 Tren Penjualan Bulanan per Kategori Produk"):
     st.subheader("Rata-rata Penjualan Tiap Bulan per Kategori Produk")
-
-    # Pastikan kolom 'Bulan' sudah ada
-    df['Bulan'] = df['Tanggal'].dt.month
     df['Kategori Produk'] = df['Kategori Produk'].astype(str)
     df_encoded = pd.get_dummies(df, columns=["Kategori Produk"], prefix="Kategori")
-
     kategori_cols = [col for col in df_encoded.columns if col.startswith("Kategori_")]
     df_encoded['Bulan'] = df['Bulan']
     kategori_per_bulan = {}
-
     for kat in kategori_cols:
         df_kat = df_encoded[df_encoded[kat] == 1]
         avg_per_month = df_kat.groupby('Bulan')["Penjualan (Unit)"].mean()
         kategori_per_bulan[kat.replace("Kategori_", "")] = avg_per_month
-
     trend_kategori_bulanan = pd.DataFrame(kategori_per_bulan)
-
-    # Plotting
     fig, ax = plt.subplots(figsize=(10, 5))
     for col in trend_kategori_bulanan.columns:
         ax.plot(trend_kategori_bulanan.index, trend_kategori_bulanan[col], label=col, marker='o')
-
     ax.set_title("Tren Rata-rata Penjualan Bulanan per Kategori Produk")
     ax.set_xlabel("Bulan")
     ax.set_ylabel("Rata-rata Penjualan (Unit)")
@@ -155,33 +144,16 @@ with st.expander("📊 Tren Penjualan Bulanan per Kategori Produk"):
     ax.legend(title="Kategori")
     st.pyplot(fig)
 
+# === HASIL PREDIKSI SELURUH DATA TEST ===
+with st.expander("🔢 Hasil Prediksi vs Aktual (Seluruh Data Test)"):
+    st.subheader("Tabel Perbandingan Prediksi dan Nilai Aktual")
+    predicted_all = model.predict(X_test)
+    df_pred_all = pd.DataFrame({
+        "Aktual": y_test.values,
+        "Prediksi": predicted_all.astype(int)
+    }, index=y_test.index)
+    st.dataframe(df_pred_all.reset_index(drop=True), use_container_width=True)
 
-# === HASIL PREDIKSI AKTUAL VS MODEL ===
-with st.expander("🔢 Contoh Hasil Prediksi"):
-    st.subheader("Prediksi vs Aktual (10 Sampel Data Test)")
-    sample_index = X_test.sample(10, random_state=1).index
-    sample_input = X_test.loc[sample_index]
-    actual_values = y_test.loc[sample_index]
-    predicted_values = model.predict(sample_input)
-
-    df_prediksi = pd.DataFrame({
-        "Aktual": actual_values.values,
-        "Prediksi": predicted_values.astype(int)
-    })
-    st.table(df_prediksi)
-
-       # Scatter Plot: Prediksi vs Aktual
-    st.subheader("Visualisasi Prediksi vs Aktual")
-    fig4, ax4 = plt.subplots()
-    ax4.scatter(actual_values, predicted_values, alpha=0.8)
-    ax4.plot([actual_values.min(), actual_values.max()],
-             [actual_values.min(), actual_values.max()],
-             'r--', label='Prediksi Sempurna')
-
-    ax4.set_xlabel("Penjualan Aktual")
-    ax4.set_ylabel("Penjualan Prediksi")
-    ax4.set_title("Prediksi vs Aktual")
-    ax4.legend()
-    st.pyplot(fig4)
-
-
+    # Optional download
+    csv = df_pred_all.to_csv(index=False).encode('utf-8')
+    st.download_button("📥 Download Hasil Prediksi", csv, "hasil_prediksi.csv", "text/csv")
