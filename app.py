@@ -169,3 +169,16 @@ with st.expander("🔢 Contoh Hasil Prediksi"):
         "Prediksi": predicted_values.astype(int)
     })
     st.table(df_prediksi)
+
+    # Visualisasi Prediksi vs Aktual
+    st.subheader("Visualisasi Prediksi vs Aktual")
+    fig2, ax2 = plt.subplots(figsize=(10, 4))
+    index_labels = [f'Data {i+1}' for i in range(len(sample_index))]
+    
+    ax2.bar(index_labels, df_prediksi['Aktual'], label='Aktual', alpha=0.7)
+    ax2.bar(index_labels, df_prediksi['Prediksi'], label='Prediksi', alpha=0.7)
+    ax2.set_ylabel("Penjualan (Unit)")
+    ax2.set_title("Perbandingan Nilai Aktual dan Prediksi")
+    ax2.legend()
+    st.pyplot(fig2)
+
