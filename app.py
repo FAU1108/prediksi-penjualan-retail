@@ -3,7 +3,6 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import statsmodels.api as sm
-from statsmodels.stats.outliers_influence import variance_inflation_factor
 from statsmodels.stats.diagnostic import het_breuschpagan
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
@@ -47,8 +46,7 @@ with st.expander("🧪 Uji Asumsi Klasik"):
     st.info("✅ Lolos jika tidak terlihat pola yang jelas.")
 
     st.subheader("2. Uji Normalitas Residual (Shapiro-Wilk Test)")
-    stat = 0.9976
-    p = 0.8828
+    stat, p = shapiro(residuals)
     st.write(f"Shapiro-Wilk statistic: `{stat:.4f}`")
     st.write(f"p-value: `{p:.4f}`")
     if p > 0.05:
@@ -69,7 +67,7 @@ with st.expander("🧪 Uji Asumsi Klasik"):
         st.error("❌ Terjadi heteroskedastisitas")
 
 # === UJI SIGNIFIKANSI ===
-with st.expander("📈 Uji Signifikansi Model"):
+with st.expander("📊 Uji Signifikansi Model"):
     st.subheader("Uji F dan Uji t")
     X_train_ols = sm.add_constant(X_train).astype(float)
     y_train_ols = y_train.astype(float)
@@ -101,9 +99,8 @@ with st.expander("📈 Evaluasi Model"):
     st.write(f"R² Score: `{r2:.2f}`")
 
 # === VISUALISASI TREN PENJUALAN ===
-with st.expander("🗕️ Visualisasi Tren Penjualan per Bulan"):
+with st.expander("📅 Visualisasi Tren Penjualan per Bulan"):
     st.subheader("Rata-rata Penjualan Tiap Bulan")
-
     bulan_map = {
         1: "Jan", 2: "Feb", 3: "Mar", 4: "Apr",
         5: "Mei", 6: "Jun", 7: "Jul", 8: "Agu",
@@ -121,17 +118,3 @@ with st.expander("🗕️ Visualisasi Tren Penjualan per Bulan"):
     ax.set_ylabel("Rata-rata Penjualan")
     ax.grid(True)
     st.pyplot(fig)
-
-# === HASIL PREDIKSI AKTUAL VS MODEL ===
-with st.expander("🔢 Contoh Hasil Prediksi"):
-    st.subheader("Prediksi vs Aktual (10 Sampel Data Test)")
-    sample_index = X_test.sample(10, random_state=1).index
-    sample_input = X_test.loc[sample_index]
-    actual_values = y_test.loc[sample_index]
-    predicted_values = model.predict(sample_input)
-
-    df_prediksi = pd.DataFrame({
-        "Aktual": actual_values.values,
-        "Prediksi": predicted_values.astype(int)
-    })
-    st.table(df_prediksi)
