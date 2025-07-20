@@ -1,4 +1,3 @@
-# FULL STREAMLIT DASHBOARD CODE (TERMASUK TREN PER KATEGORI)
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -9,7 +8,7 @@ from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 from sklearn.model_selection import train_test_split
 
-# Load data
+# Load Data
 df = pd.read_csv("Dataset_Permintaan_Produk_Retail_2024.csv")
 df['Tanggal'] = pd.to_datetime(df['Tanggal'])
 df['Bulan'] = df['Tanggal'].dt.month
@@ -20,14 +19,14 @@ df_encoded = pd.get_dummies(df, columns=["Kategori Produk"], prefix="Kategori")
 X = df_encoded.drop(columns=["Tanggal", "Lokasi", "Penjualan (Unit)"])
 y = df_encoded["Penjualan (Unit)"]
 
-# Split data
+# Split dan Training Model
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 model = LinearRegression()
 model.fit(X_train, y_train)
 y_pred = model.predict(X_test)
 residuals = y_test - y_pred
 
-# Layout
+# Layout Dashboard
 st.set_page_config(page_title="Prediksi Penjualan", layout="wide")
 st.title("📊 Dashboard Prediksi Permintaan Produk Retail – Jakarta Timur")
 
@@ -112,7 +111,7 @@ with st.expander("📅 Visualisasi Tren Penjualan per Bulan"):
     ax.grid(True)
     st.pyplot(fig)
 
-# === VISUALISASI TREN PER KATEGORI PRODUK ===
+# === VISUALISASI PER KATEGORI ===
 with st.expander("📊 Tren Penjualan Bulanan per Kategori Produk"):
     st.subheader("Rata-rata Penjualan Tiap Bulan per Kategori Produk")
     kategori_cols = [col for col in df_encoded.columns if col.startswith("Kategori_")]
@@ -122,7 +121,6 @@ with st.expander("📊 Tren Penjualan Bulanan per Kategori Produk"):
         avg_per_month = df_kat.groupby('Bulan')["Penjualan (Unit)"].mean()
         kategori_per_bulan[kat.replace("Kategori_", "")] = avg_per_month
     trend_kategori_bulanan = pd.DataFrame(kategori_per_bulan)
-
     fig, ax = plt.subplots(figsize=(10, 5))
     for col in trend_kategori_bulanan.columns:
         ax.plot(trend_kategori_bulanan.index, trend_kategori_bulanan[col], label=col, marker='o')
@@ -134,3 +132,33 @@ with st.expander("📊 Tren Penjualan Bulanan per Kategori Produk"):
     ax.grid(True)
     ax.legend(title="Kategori")
     st.pyplot(fig)
+
+# === PREDIKSI SPESIFIK BULAN & KATEGORI ===
+with st.expander("🔍 Prediksi Penjualan Bulan & Kategori Tertentu"):
+    st.subheader("Simulasi Prediksi Spesifik Bulan dan Kategori Produk")
+
+    bulan_label = {
+        "Jan": 1, "Feb": 2, "Mar": 3, "Apr": 4,
+        "Mei": 5, "Jun": 6, "Jul": 7, "Agu": 8,
+        "Sep": 9, "Okt": 10, "Nov": 11, "Des": 12
+    }
+    selected_bulan = st.selectbox("Pilih Bulan", list(bulan_label.keys()))
+    bulan_value = bulan_label[selected_bulan]
+
+    kategori_list = [col.replace("Kategori_", "") for col in kategori_cols]
+    selected_kat = st.selectbox("Pilih Kategori Produk", kategori_list)
+
+    stok_input = st.number_input("Masukkan nilai Stok", min_value=0.0, value=float(df['Stok'].mean()))
+
+    input_data = {
+        "Bulan": bulan_value,
+        "Stok": stok_input
+    }
+    for col in kategori_cols:
+        input_data[col] = 1 if col == f"Kategori_{selected_kat}" else 0
+
+    input_df = pd.DataFrame([input_data])
+
+    if st.button("Prediksi Sekarang"):
+        pred_result = model.predict(input_df)[0]
+        st.success(f"📦 Prediksi penjualan bulan **{selected_bulan}** untuk produk **{selected_kat}** adalah sekitar **{pred_result:.0f} unit**.")
