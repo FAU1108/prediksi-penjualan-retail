@@ -121,6 +121,40 @@ with st.expander("🗕️ Visualisasi Tren Penjualan per Bulan"):
     ax.set_ylabel("Rata-rata Penjualan")
     ax.grid(True)
     st.pyplot(fig)
+    # === VISUALISASI TREN PER KATEGORI ===
+with st.expander("📊 Tren Penjualan Bulanan per Kategori Produk"):
+    st.subheader("Rata-rata Penjualan Tiap Bulan per Kategori Produk")
+
+    # Pastikan kolom 'Bulan' sudah ada
+    df['Bulan'] = df['Tanggal'].dt.month
+    df['Kategori Produk'] = df['Kategori Produk'].astype(str)
+    df_encoded = pd.get_dummies(df, columns=["Kategori Produk"], prefix="Kategori")
+
+    kategori_cols = [col for col in df_encoded.columns if col.startswith("Kategori_")]
+    df_encoded['Bulan'] = df['Bulan']
+    kategori_per_bulan = {}
+
+    for kat in kategori_cols:
+        df_kat = df_encoded[df_encoded[kat] == 1]
+        avg_per_month = df_kat.groupby('Bulan')["Penjualan (Unit)"].mean()
+        kategori_per_bulan[kat.replace("Kategori_", "")] = avg_per_month
+
+    trend_kategori_bulanan = pd.DataFrame(kategori_per_bulan)
+
+    # Plotting
+    fig, ax = plt.subplots(figsize=(10, 5))
+    for col in trend_kategori_bulanan.columns:
+        ax.plot(trend_kategori_bulanan.index, trend_kategori_bulanan[col], label=col, marker='o')
+
+    ax.set_title("Tren Rata-rata Penjualan Bulanan per Kategori Produk")
+    ax.set_xlabel("Bulan")
+    ax.set_ylabel("Rata-rata Penjualan (Unit)")
+    ax.set_xticks(range(1, 13))
+    ax.set_xticklabels(["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"])
+    ax.grid(True)
+    ax.legend(title="Kategori")
+    st.pyplot(fig)
+
 
 # === HASIL PREDIKSI AKTUAL VS MODEL ===
 with st.expander("🔢 Contoh Hasil Prediksi"):
